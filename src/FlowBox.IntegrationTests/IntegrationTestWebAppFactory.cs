@@ -1,4 +1,4 @@
-using FlowBox.Api.Data;
+using FlowBox.Api.Data.Ef;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Testcontainers.PostgreSql;

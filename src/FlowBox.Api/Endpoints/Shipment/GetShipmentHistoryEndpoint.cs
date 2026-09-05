@@ -1,6 +1,5 @@
-using FlowBox.Api.Data;
+using FlowBox.Api.Service.Shipment;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 
 namespace FlowBox.Api.Endpoints.Shipment;
 
@@ -18,31 +17,26 @@ public class GetShipmentHistoryEndpoint : IEndpoint
 
     private static async Task<Results<Ok<GetShipmentHistoryResponse>, NotFound<string>>> Handle(
         string trackingNumber,
-        FlowBoxDbContext db,
-        CancellationToken ctx)
+        ShipmentService shipmentService,
+        CancellationToken ct)
     {
-        var shipment = await db.Shipments
-            .AsNoTracking()
-            .Include(s => s.Assignments)
-            .ThenInclude(a => a.Courier)
-            .FirstOrDefaultAsync(s => s.TrackingNumber == trackingNumber, ctx);
+        var result = await shipmentService.GetAssignmentHistoryAsync(trackingNumber, ct);
 
-        if (shipment is null)
+        return result switch
         {
-            return TypedResults.NotFound("Kargo bulunamadı.");
-        }
+            ShipmentHistoryResult.Found found => TypedResults.Ok(new GetShipmentHistoryResponse(
+                found.TrackingNumber,
+                found.History.Select(a => new HistoryRecordResponse(
+                    a.Courier!.Name,
+                    a.AssignedAt,
+                    a.CompletedAt,
+                    a.IsActive
+                )).ToList())),
 
-        var history = shipment.Assignments
-            .OrderByDescending(a => a.AssignedAt)
-            .Select(a => new HistoryRecordResponse(
-                a.Courier!.Name,
-                a.AssignedAt,
-                a.CompletedAt,
-                a.IsActive
-            )).ToList();
+            ShipmentHistoryResult.NotFound => TypedResults.NotFound("Kargo bulunamadı."),
 
-        var response = new GetShipmentHistoryResponse(shipment.TrackingNumber, history);
-        return TypedResults.Ok(response);
+            _ => throw new InvalidOperationException("Beklenmeyen sonuç türü.")
+        };
     }
 
     public void MapEndpoint(IEndpointRouteBuilder builder)

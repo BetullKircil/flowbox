@@ -1,8 +1,8 @@
-using FlowBox.Api.Domain;
+using FlowBox.Api.Domain.Shipment;
 using FlowBox.Api.Enums;
 using FluentAssertions;
 
-namespace FlowBox.UnitTests.Domain;
+namespace FlowBox.UnitTests.Domain.Shipment;
 
 public class ShipmentStatusTransitionsTests
 {

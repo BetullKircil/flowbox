@@ -1,6 +1,6 @@
 using FlowBox.Api.Enums;
 
-namespace FlowBox.Api.Domain;
+namespace FlowBox.Api.Domain.Shipment;
 
 public static class ShipmentStatusTransitions
 {
@@ -23,6 +23,7 @@ public static class ShipmentStatusTransitions
     ];
 
     public static bool IsTerminal(ShipmentStatus status) => TerminalStatuses.Contains(status);
+
     public static bool IsValidTransition(ShipmentStatus from, ShipmentStatus to)
     {
         if (IsTerminal(from))
@@ -40,6 +41,7 @@ public static class ShipmentStatusTransitions
 
         return fromIndex >= 0 && toIndex == fromIndex + 1;
     }
+    
     public static IReadOnlyCollection<ShipmentStatus> GetValidNextStatuses(ShipmentStatus from)
     {
         if (IsTerminal(from))

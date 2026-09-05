@@ -1,8 +1,7 @@
-using FlowBox.Api.Data;
+using FlowBox.Api.Service.Shipment;
 using FluentValidation;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace FlowBox.Api.Endpoints.Shipment;
 
@@ -15,42 +14,29 @@ public class AssignShipmentEndpoint : IEndpoint
     private static async Task<Results<Ok<AssignShipmentResponse>, NotFound<string>, ValidationProblem>> Handle(
         string trackingNumber,
         [FromBody] AssignShipmentRequest request,
-        FlowBoxDbContext db,
+        ShipmentService shipmentService,
         IValidator<AssignShipmentRequest> validator,
-        CancellationToken ctx)
+        CancellationToken ct)
     {
-        var validationResult = await validator.ValidateAsync(request, ctx);
+        var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
         {
             return TypedResults.ValidationProblem(validationResult.ToDictionary());
         }
 
-        var shipment = await db.Shipments
-            .Include(s => s.Assignments)
-            .FirstOrDefaultAsync(s => s.TrackingNumber == trackingNumber, ctx);
+        var result = await shipmentService.AssignToCourierAsync(trackingNumber, request.CourierId, ct);
 
-        if (shipment is null) return TypedResults.NotFound("Kargo bulunamadı.");
-
-        var courier = await db.Couriers.FirstOrDefaultAsync(c => c.Id == request.CourierId, ctx);
-        if (courier is null) return TypedResults.NotFound("Belirtilen kurye bulunamadı.");
-
-        var activeAssignment = shipment.Assignments.FirstOrDefault(a => a.IsActive);
-        if (activeAssignment is not null)
+        return result switch
         {
-            activeAssignment.IsActive = false;
-            activeAssignment.CompletedAt = DateTime.UtcNow;
-        }
+            AssignShipmentResult.Success success => TypedResults.Ok(
+                new AssignShipmentResponse(success.TrackingNumber, success.CourierId, success.CourierName)),
 
-        var newAssignment = new FlowBox.Api.Models.ShipmentAssignment
-        {
-            ShipmentId = shipment.Id,
-            CourierId = courier.Id
+            AssignShipmentResult.ShipmentNotFound => TypedResults.NotFound("Kargo bulunamadı."),
+
+            AssignShipmentResult.CourierNotFound => TypedResults.NotFound("Belirtilen kurye bulunamadı."),
+
+            _ => throw new InvalidOperationException("Beklenmeyen sonuç türü.")
         };
-        db.ShipmentAssignments.Add(newAssignment);
-
-        await db.SaveChangesAsync(ctx);
-
-        return TypedResults.Ok(new AssignShipmentResponse(shipment.TrackingNumber, courier.Id, courier.Name));
     }
 
     public void MapEndpoint(IEndpointRouteBuilder builder)

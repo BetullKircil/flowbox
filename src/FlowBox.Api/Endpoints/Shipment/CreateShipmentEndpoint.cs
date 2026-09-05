@@ -1,4 +1,4 @@
-using FlowBox.Api.Data;
+using FlowBox.Api.Service.Shipment;
 using FluentValidation;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -9,41 +9,19 @@ public class CreateShipmentEndpoint : IEndpoint
 {
     private static async Task<Results<Created<CreateShipmentResponse>, ValidationProblem>> Handle(
         [FromBody] CreateShipmentRequest request,
-        FlowBoxDbContext db,
-        CancellationToken ctx,
-        IValidator<CreateShipmentRequest> validator)
+        ShipmentService shipmentService,
+        IValidator<CreateShipmentRequest> validator,
+        CancellationToken ct)
     {
-        var validationResult = await validator.ValidateAsync(request, ctx);
-
+        var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
         {
             return TypedResults.ValidationProblem(validationResult.ToDictionary());
         }
 
-        var shipment = new FlowBox.Api.Models.Shipment
-        {
-            Origin = request.Origin,
-            Destination = request.Destination,
-            Weight = request.Weight
-        };
+        var shipment = await shipmentService.CreateAsync(request.Origin, request.Destination, request.Weight, ct);
 
-        shipment.TrackingNumber = $"TR{Random.Shared.Next(100000, 999999)}";
-
-        shipment.TrackingEvents.Add(new FlowBox.Api.Models.ShipmentTrackingEvent
-        {
-            ShipmentId = shipment.Id,
-            Status = shipment.Status,
-            Location = shipment.Origin
-        });
-
-        db.Shipments.Add(shipment);
-        await db.SaveChangesAsync(ctx);
-
-        var response = new CreateShipmentResponse(
-            shipment.Id,
-            shipment.TrackingNumber,
-            shipment.Status.ToString());
-
+        var response = new CreateShipmentResponse(shipment.Id, shipment.TrackingNumber, shipment.Status.ToString());
         return TypedResults.Created($"/api/shipments/{shipment.TrackingNumber}", response);
     }
 

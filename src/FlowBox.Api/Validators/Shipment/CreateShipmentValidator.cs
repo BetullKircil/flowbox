@@ -1,6 +1,7 @@
+using FlowBox.Api.Endpoints.Shipment;
 using FluentValidation;
 
-namespace FlowBox.Api.Endpoints.Shipment;
+namespace FlowBox.Api.Validators.Shipment;
 
 public class CreateShipmentValidator : AbstractValidator<CreateShipmentEndpoint.CreateShipmentRequest>
 {
@@ -8,10 +9,10 @@ public class CreateShipmentValidator : AbstractValidator<CreateShipmentEndpoint.
     {
         RuleFor(x => x.Origin)
             .NotEmpty().WithMessage("Çıkış noktası (Origin) boş olamaz.");
-            
+
         RuleFor(x => x.Destination)
             .NotEmpty().WithMessage("Varış noktası (Destination) boş olamaz.");
-            
+
         RuleFor(x => x.Weight)
             .GreaterThan(0).WithMessage("Kargo ağırlığı sıfırdan büyük olmalıdır.");
     }

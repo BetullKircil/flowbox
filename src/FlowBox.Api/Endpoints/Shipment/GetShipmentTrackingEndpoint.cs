@@ -1,9 +1,12 @@
-using FlowBox.Api.Data;
+using FlowBox.Api.Service.Shipment;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 
 namespace FlowBox.Api.Endpoints.Shipment;
 
+/// <summary>
+/// Customer App'teki "kargom nerede" zaman çizelgesinin backend karşılığı:
+/// bir kargonun geçtiği tüm statüleri kronolojik sırayla döner.
+/// </summary>
 public class GetShipmentTrackingEndpoint : IEndpoint
 {
     public record TrackingEventResponse(string Status, string? Location, DateTime OccurredAt);
@@ -12,25 +15,22 @@ public class GetShipmentTrackingEndpoint : IEndpoint
 
     private static async Task<Results<Ok<GetShipmentTrackingResponse>, NotFound<string>>> Handle(
         string trackingNumber,
-        FlowBoxDbContext db,
-        CancellationToken ctx)
+        ShipmentService shipmentService,
+        CancellationToken ct)
     {
-        var shipment = await db.Shipments
-            .AsNoTracking()
-            .Include(s => s.TrackingEvents)
-            .FirstOrDefaultAsync(s => s.TrackingNumber == trackingNumber, ctx);
+        var result = await shipmentService.GetTrackingAsync(trackingNumber, ct);
 
-        if (shipment is null)
+        return result switch
         {
-            return TypedResults.NotFound("Kargo bulunamadı.");
-        }
+            ShipmentTrackingResult.Found found => TypedResults.Ok(new GetShipmentTrackingResponse(
+                found.TrackingNumber,
+                found.Events.Select(e => new TrackingEventResponse(
+                    e.Status.ToString(), e.Location, e.OccurredAt)).ToList())),
 
-        var events = shipment.TrackingEvents
-            .OrderBy(e => e.OccurredAt)
-            .Select(e => new TrackingEventResponse(e.Status.ToString(), e.Location, e.OccurredAt))
-            .ToList();
+            ShipmentTrackingResult.NotFound => TypedResults.NotFound("Kargo bulunamadı."),
 
-        return TypedResults.Ok(new GetShipmentTrackingResponse(shipment.TrackingNumber, events));
+            _ => throw new InvalidOperationException("Beklenmeyen sonuç türü.")
+        };
     }
 
     public void MapEndpoint(IEndpointRouteBuilder builder)

@@ -1,7 +1,8 @@
+using FlowBox.Api.Endpoints.Shipment;
 using FlowBox.Api.Enums;
 using FluentValidation;
 
-namespace FlowBox.Api.Endpoints.Shipment;
+namespace FlowBox.Api.Validators.Shipment;
 
 public class UpdateShipmentStatusValidator : AbstractValidator<UpdateShipmentStatusEndpoint.UpdateShipmentStatusRequest>
 {

@@ -1,4 +1,4 @@
-namespace FlowBox.Api.Models;
+namespace FlowBox.Api.Data.Ef.Models;
 
 public class ShipmentAssignment
 {

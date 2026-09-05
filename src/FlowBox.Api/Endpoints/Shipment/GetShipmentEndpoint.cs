@@ -1,6 +1,5 @@
-using FlowBox.Api.Data;
+using FlowBox.Api.Service.Shipment;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 
 namespace FlowBox.Api.Endpoints.Shipment;
 
@@ -17,12 +16,10 @@ public class GetShipmentEndpoint : IEndpoint
 
     private static async Task<Results<Ok<GetShipmentResponse>, NotFound>> Handle(
         string trackingNumber,
-        FlowBoxDbContext db,
-        CancellationToken ctx)
+        ShipmentService shipmentService,
+        CancellationToken ct)
     {
-        var shipment = await db.Shipments
-            .AsNoTracking()
-            .FirstOrDefaultAsync(s => s.TrackingNumber == trackingNumber, ctx);
+        var shipment = await shipmentService.GetByTrackingNumberAsync(trackingNumber, ct);
 
         if (shipment is null)
         {

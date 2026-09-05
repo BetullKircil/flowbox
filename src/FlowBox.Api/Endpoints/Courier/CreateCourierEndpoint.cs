@@ -1,4 +1,4 @@
-using FlowBox.Api.Data;
+using FlowBox.Api.Service.Courier;
 using FluentValidation;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -13,27 +13,19 @@ public class CreateCourierEndpoint : IEndpoint
 
     private static async Task<Results<Created<CreateCourierResponse>, ValidationProblem>> Handle(
         [FromBody] CreateCourierRequest request,
-        FlowBoxDbContext db,
+        CourierService courierService,
         IValidator<CreateCourierRequest> validator,
-        CancellationToken ctx)
+        CancellationToken ct)
     {
-        var validationResult = await validator.ValidateAsync(request, ctx);
+        var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
         {
             return TypedResults.ValidationProblem(validationResult.ToDictionary());
         }
 
-        var courier = new FlowBox.Api.Models.Courier
-        {
-            Name = request.Name,
-            Phone = request.Phone
-        };
-
-        db.Couriers.Add(courier);
-        await db.SaveChangesAsync(ctx);
+        var courier = await courierService.CreateAsync(request.Name, request.Phone, ct);
 
         var response = new CreateCourierResponse(courier.Id, courier.Name, courier.Phone);
-
         return TypedResults.Created($"/api/couriers/{courier.Id}", response);
     }
 

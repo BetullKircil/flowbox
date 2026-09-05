@@ -1,7 +1,7 @@
 using FlowBox.Api.Endpoints.Courier;
 using FluentValidation;
 
-namespace FlowBox.Api.Validators.Shipment;
+namespace FlowBox.Api.Validators.Courier;
 
 public class CreateCourierValidator : AbstractValidator<CreateCourierEndpoint.CreateCourierRequest>
 {

@@ -1,7 +1,6 @@
-using FlowBox.Api.Data;
+using FlowBox.Api.Service.Shipment;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace FlowBox.Api.Endpoints.Shipment;
 
@@ -19,17 +18,12 @@ public class GetShipmentsEndpoint : IEndpoint
     private static async Task<Ok<List<GetShipmentsResponse>>> Handle(
         [FromQuery] int? skip,
         [FromQuery] int? take,
-        FlowBoxDbContext db,
-        CancellationToken ctx)
+        ShipmentService shipmentService,
+        CancellationToken ct)
     {
-        int skipValue = skip ?? 0;
-        int takeValue = take ?? 20;
+        var shipments = await shipmentService.GetPagedAsync(skip ?? 0, take ?? 20, ct);
 
-        var shipments = await db.Shipments
-            .AsNoTracking()
-            .OrderByDescending(s => s.CreatedAt)
-            .Skip(skipValue)
-            .Take(takeValue)
+        var response = shipments
             .Select(s => new GetShipmentsResponse(
                 s.Id,
                 s.TrackingNumber,
@@ -38,9 +32,9 @@ public class GetShipmentsEndpoint : IEndpoint
                 s.Weight,
                 s.Status.ToString(),
                 s.CreatedAt))
-            .ToListAsync(ctx);
+            .ToList();
 
-        return TypedResults.Ok(shipments);
+        return TypedResults.Ok(response);
     }
 
     public void MapEndpoint(IEndpointRouteBuilder builder)

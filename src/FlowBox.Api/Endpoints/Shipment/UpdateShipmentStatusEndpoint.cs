@@ -1,10 +1,8 @@
-using FlowBox.Api.Data;
-using FlowBox.Api.Domain;
 using FlowBox.Api.Enums;
+using FlowBox.Api.Service.Shipment;
 using FluentValidation;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace FlowBox.Api.Endpoints.Shipment;
 
@@ -13,59 +11,38 @@ public class UpdateShipmentStatusEndpoint : IEndpoint
     private static async Task<Results<Ok<UpdateShipmentStatusResponse>, NotFound, ValidationProblem>> Handle(
         string trackingNumber,
         [FromBody] UpdateShipmentStatusRequest request,
-        FlowBoxDbContext db,
+        ShipmentService shipmentService,
         IValidator<UpdateShipmentStatusRequest> validator,
-        CancellationToken ctx)
+        CancellationToken ct)
     {
-        var validationResult = await validator.ValidateAsync(request, ctx);
+        var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
         {
             return TypedResults.ValidationProblem(validationResult.ToDictionary());
         }
 
-        var shipment = await db.Shipments.FirstOrDefaultAsync(s => s.TrackingNumber == trackingNumber, ctx);
-
-        if (shipment is null)
-        {
-            return TypedResults.NotFound();
-        }
-
         var newStatus = Enum.Parse<ShipmentStatus>(request.Status);
+        var result = await shipmentService.UpdateStatusAsync(trackingNumber, newStatus, ct);
 
-        if (!ShipmentStatusTransitions.IsValidTransition(shipment.Status, newStatus))
+        return result switch
         {
-            var validNext = ShipmentStatusTransitions.GetValidNextStatuses(shipment.Status);
-            var message = validNext.Count == 0
-                ? $"Kargo şu anda '{shipment.Status}' durumunda olduğu için statüsü artık güncellenemez."
-                : $"'{shipment.Status}' durumundan '{newStatus}' durumuna geçilemez. Geçerli sonraki durumlar: {string.Join(", ", validNext)}.";
+            UpdateShipmentStatusResult.Success success => TypedResults.Ok(new UpdateShipmentStatusResponse(
+                trackingNumber,
+                success.OldStatus,
+                success.Shipment.Status.ToString())),
 
-            var error = new Dictionary<string, string[]> { { "Status", new[] { message } } };
-            return TypedResults.ValidationProblem(error);
-        }
+            UpdateShipmentStatusResult.ShipmentNotFound => TypedResults.NotFound(),
 
-        var oldStatus = shipment.Status.ToString();
-        shipment.Status = newStatus;
+            UpdateShipmentStatusResult.InvalidTransition invalid => TypedResults.ValidationProblem(
+                new Dictionary<string, string[]> { { "Status", new[] { invalid.Message } } }),
 
-        db.ShipmentTrackingEvents.Add(new FlowBox.Api.Models.ShipmentTrackingEvent
-        {
-            ShipmentId = shipment.Id,
-            Status = newStatus
-        });
-
-        await db.SaveChangesAsync(ctx);
-
-        var response = new UpdateShipmentStatusResponse(
-            shipment.TrackingNumber,
-            oldStatus,
-            shipment.Status.ToString());
-
-        return TypedResults.Ok(response);
+            _ => throw new InvalidOperationException("Beklenmeyen sonuç türü.")
+        };
     }
 
     public record UpdateShipmentStatusRequest(string Status);
 
     public record UpdateShipmentStatusResponse(string TrackingNumber, string OldStatus, string NewStatus);
-
 
     public void MapEndpoint(IEndpointRouteBuilder builder)
     {

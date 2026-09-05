@@ -1,7 +1,7 @@
-using FlowBox.Api.Models;
+using FlowBox.Api.Data.Ef.Models;
 using Microsoft.EntityFrameworkCore;
 
-namespace FlowBox.Api.Data;
+namespace FlowBox.Api.Data.Ef;
 
 public class FlowBoxDbContext(DbContextOptions<FlowBoxDbContext> options) : DbContext(options)
 {
