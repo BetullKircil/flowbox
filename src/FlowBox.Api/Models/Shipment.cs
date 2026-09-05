@@ -11,6 +11,5 @@ public class Shipment
     public decimal Weight { get; set; }
     public ShipmentStatus Status { get; set; } = ShipmentStatus.Created;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public Guid? CourierId { get; set; }
-    public Courier? Courier { get; set; }
+    public ICollection<ShipmentAssignment> Assignments { get; set; } = new List<ShipmentAssignment>();
 }

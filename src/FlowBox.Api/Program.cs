@@ -27,4 +27,12 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.MapEndpoints();
+
+// Uygulama başlarken bekleyen tüm migration'ları veritabanına uygular
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<FlowBox.Api.Data.FlowBoxDbContext>();
+    db.Database.Migrate();
+}
+
 app.Run();
