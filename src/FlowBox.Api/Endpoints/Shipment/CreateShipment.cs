@@ -29,6 +29,13 @@ public class CreateShipmentEndpoint : IEndpoint
 
         shipment.TrackingNumber = $"TR{Random.Shared.Next(100000, 999999)}";
 
+        shipment.TrackingEvents.Add(new FlowBox.Api.Models.ShipmentTrackingEvent
+        {
+            ShipmentId = shipment.Id,
+            Status = shipment.Status,
+            Location = shipment.Origin
+        });
+
         db.Shipments.Add(shipment);
         await db.SaveChangesAsync(ctx);
 

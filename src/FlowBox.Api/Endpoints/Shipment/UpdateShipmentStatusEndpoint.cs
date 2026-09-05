@@ -1,4 +1,5 @@
 using FlowBox.Api.Data;
+using FlowBox.Api.Domain;
 using FlowBox.Api.Enums;
 using FluentValidation;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -29,20 +30,27 @@ public class UpdateShipmentStatusEndpoint : IEndpoint
             return TypedResults.NotFound();
         }
 
-        if (shipment.Status == ShipmentStatus.Delivered || shipment.Status == ShipmentStatus.Failed)
+        var newStatus = Enum.Parse<ShipmentStatus>(request.Status);
+
+        if (!ShipmentStatusTransitions.IsValidTransition(shipment.Status, newStatus))
         {
-            var error = new Dictionary<string, string[]>
-            {
-                {
-                    "Status",
-                    new[] { $"Kargo şu anda '{shipment.Status}' durumunda olduğu için statüsü artık güncellenemez." }
-                }
-            };
+            var validNext = ShipmentStatusTransitions.GetValidNextStatuses(shipment.Status);
+            var message = validNext.Count == 0
+                ? $"Kargo şu anda '{shipment.Status}' durumunda olduğu için statüsü artık güncellenemez."
+                : $"'{shipment.Status}' durumundan '{newStatus}' durumuna geçilemez. Geçerli sonraki durumlar: {string.Join(", ", validNext)}.";
+
+            var error = new Dictionary<string, string[]> { { "Status", new[] { message } } };
             return TypedResults.ValidationProblem(error);
         }
 
         var oldStatus = shipment.Status.ToString();
-        shipment.Status = Enum.Parse<ShipmentStatus>(request.Status);
+        shipment.Status = newStatus;
+
+        db.ShipmentTrackingEvents.Add(new FlowBox.Api.Models.ShipmentTrackingEvent
+        {
+            ShipmentId = shipment.Id,
+            Status = newStatus
+        });
 
         await db.SaveChangesAsync(ctx);
 

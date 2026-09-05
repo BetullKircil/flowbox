@@ -10,6 +10,7 @@ public class UpdateShipmentStatusValidator : AbstractValidator<UpdateShipmentSta
         RuleFor(x => x.Status)
             .NotEmpty().WithMessage("Statü boş olamaz.")
             .IsEnumName(typeof(ShipmentStatus), caseSensitive: true)
-            .WithMessage("Geçersiz bir kargo statüsü. Lütfen geçerli bir değer girin: Created, InTransit, Delivered, Failed");
+            .WithMessage(
+                $"Geçersiz bir kargo statüsü. Lütfen geçerli bir değer girin: {string.Join(", ", Enum.GetNames<ShipmentStatus>())}");
     }
 }

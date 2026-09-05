@@ -12,4 +12,5 @@ public class Shipment
     public ShipmentStatus Status { get; set; } = ShipmentStatus.Created;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public ICollection<ShipmentAssignment> Assignments { get; set; } = new List<ShipmentAssignment>();
+    public ICollection<ShipmentTrackingEvent> TrackingEvents { get; set; } = new List<ShipmentTrackingEvent>();
 }

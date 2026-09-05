@@ -8,4 +8,5 @@ public class FlowBoxDbContext(DbContextOptions<FlowBoxDbContext> options) : DbCo
     public DbSet<Shipment> Shipments => Set<Shipment>();
     public DbSet<Courier> Couriers => Set<Courier>();
     public DbSet<ShipmentAssignment> ShipmentAssignments => Set<ShipmentAssignment>();
+    public DbSet<ShipmentTrackingEvent> ShipmentTrackingEvents => Set<ShipmentTrackingEvent>();
 }
