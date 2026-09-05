@@ -42,7 +42,7 @@ public class CreateShipmentEndpoint : IEndpoint
 
     public record CreateShipmentRequest(string Origin, string Destination, decimal Weight);
 
-    private record CreateShipmentResponse(Guid Id, string TrackingNumber, string Status);
+    public record CreateShipmentResponse(Guid Id, string TrackingNumber, string Status);
 
     public void MapEndpoint(IEndpointRouteBuilder builder)
     {
