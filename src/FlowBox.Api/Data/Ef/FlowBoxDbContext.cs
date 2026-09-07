@@ -5,6 +5,7 @@ namespace FlowBox.Api.Data.Ef;
 
 public class FlowBoxDbContext(DbContextOptions<FlowBoxDbContext> options) : DbContext(options)
 {
+    public DbSet<Order> Orders => Set<Order>();
     public DbSet<Shipment> Shipments => Set<Shipment>();
     public DbSet<Courier> Couriers => Set<Courier>();
     public DbSet<ShipmentAssignment> ShipmentAssignments => Set<ShipmentAssignment>();

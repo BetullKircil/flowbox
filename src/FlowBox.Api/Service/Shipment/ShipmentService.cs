@@ -10,27 +10,6 @@ public class ShipmentService(
     IShipmentRepository shipmentRepository,
     ICourierRepository courierRepository) : IService
 {
-    public async Task<Data.Ef.Models.Shipment> CreateAsync(string origin, string destination, decimal weight, CancellationToken ct)
-    {
-        var shipment = new Data.Ef.Models.Shipment
-        {
-            Origin = origin,
-            Destination = destination,
-            Weight = weight,
-            TrackingNumber = $"TR{Random.Shared.Next(100000, 999999)}"
-        };
-
-        shipment.TrackingEvents.Add(new ShipmentTrackingEvent
-        {
-            ShipmentId = shipment.Id,
-            Status = shipment.Status,
-            Location = shipment.Origin
-        });
-
-        await shipmentRepository.AddAsync(shipment, ct);
-        return shipment;
-    }
-
     public Task<Data.Ef.Models.Shipment?> GetByTrackingNumberAsync(string trackingNumber, CancellationToken ct) =>
         shipmentRepository.GetByTrackingNumberAsync(trackingNumber, ct);
 

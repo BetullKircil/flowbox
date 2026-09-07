@@ -35,12 +35,6 @@ public class EfShipmentRepository(FlowBoxDbContext db) : IShipmentRepository
             .Take(take)
             .ToListAsync(ct);
 
-    public async Task AddAsync(Data.Ef.Models.Shipment shipment, CancellationToken ct)
-    {
-        db.Shipments.Add(shipment);
-        await db.SaveChangesAsync(ct);
-    }
-
     public Task AddAssignmentAsync(ShipmentAssignment assignment, CancellationToken ct)
     {
         db.ShipmentAssignments.Add(assignment);

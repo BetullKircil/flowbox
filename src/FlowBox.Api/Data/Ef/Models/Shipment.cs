@@ -5,6 +5,10 @@ namespace FlowBox.Api.Data.Ef.Models;
 public class Shipment
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+
+    public Guid OrderId { get; set; }
+    public Order? Order { get; set; }
+
     public string TrackingNumber { get; set; } = string.Empty;
     public string Origin { get; set; } = string.Empty;
     public string Destination { get; set; } = string.Empty;

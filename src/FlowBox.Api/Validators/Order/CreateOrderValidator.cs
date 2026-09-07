@@ -1,11 +1,11 @@
-using FlowBox.Api.Endpoints.Shipment;
+using FlowBox.Api.Endpoints.Order;
 using FluentValidation;
 
-namespace FlowBox.Api.Validators.Shipment;
+namespace FlowBox.Api.Validators.Order;
 
-public class CreateShipmentValidator : AbstractValidator<CreateShipmentEndpoint.CreateShipmentRequest>
+public class CreateOrderValidator : AbstractValidator<CreateOrderEndpoint.CreateOrderRequest>
 {
-    public CreateShipmentValidator()
+    public CreateOrderValidator()
     {
         RuleFor(x => x.Origin)
             .NotEmpty().WithMessage("Çıkış noktası (Origin) boş olamaz.");

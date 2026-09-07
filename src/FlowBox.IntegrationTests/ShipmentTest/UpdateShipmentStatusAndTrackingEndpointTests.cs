@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using FlowBox.Api.Endpoints.Order;
 using FlowBox.Api.Endpoints.Shipment;
 using FluentAssertions;
 using Xunit;
@@ -17,9 +18,9 @@ public class UpdateShipmentStatusAndTrackingEndpointTests : IClassFixture<Integr
 
     private async Task<string> CreateShipmentAsync()
     {
-        var request = new CreateShipmentEndpoint.CreateShipmentRequest("Istanbul", "Konya", 3.0m);
-        var response = await _client.PostAsJsonAsync("/api/shipments", request);
-        var created = await response.Content.ReadFromJsonAsync<CreateShipmentEndpoint.CreateShipmentResponse>();
+        var request = new CreateOrderEndpoint.CreateOrderRequest("Istanbul", "Konya", 3.0m);
+        var response = await _client.PostAsJsonAsync("/api/orders", request);
+        var created = await response.Content.ReadFromJsonAsync<CreateOrderEndpoint.CreateOrderResponse>();
         return created!.TrackingNumber;
     }
 

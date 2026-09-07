@@ -1,3 +1,4 @@
+using FlowBox.Api.Data.Ef.Models;
 using FlowBox.Api.Enums;
 using FlowBox.Api.Service.Shipment;
 using FluentAssertions;
@@ -5,6 +6,13 @@ using FlowBox.UnitTests.Fakes;
 
 namespace FlowBox.UnitTests.Service.Shipment;
 
+/// <summary>
+/// Bu testler ShipmentService'in iş kurallarını, gerçek bir veritabanı olmadan
+/// (FakeShipmentRepository/FakeCourierRepository ile) doğrular. Shipment artık
+/// Order üzerinden oluşturulduğu için (bkz. OrderServiceTests), buradaki testler
+/// repository'ye doğrudan bir Shipment seed edip ondan sonraki adımları (statü
+/// geçişi, kurye atama, geçmiş/tracking) doğruluyor.
+/// </summary>
 public class ShipmentServiceTests
 {
     private static ShipmentService CreateService(
@@ -16,15 +24,26 @@ public class ShipmentServiceTests
         return new ShipmentService(shipmentRepository, courierRepository);
     }
 
-    [Fact]
-    public async Task CreateAsync_AddsShipmentWithInitialCreatedTrackingEvent()
+    private static FlowBox.Api.Data.Ef.Models.Shipment SeedShipment(FakeShipmentRepository repository)
     {
-        var service = CreateService(out var shipmentRepository, out _);
+        var shipment = new FlowBox.Api.Data.Ef.Models.Shipment
+        {
+            OrderId = Guid.NewGuid(),
+            Origin = "Istanbul",
+            Destination = "Konya",
+            Weight = 3m,
+            TrackingNumber = $"TR{Random.Shared.Next(100000, 999999)}"
+        };
 
-        var shipment = await service.CreateAsync("Istanbul", "Konya", 3m, CancellationToken.None);
+        shipment.TrackingEvents.Add(new ShipmentTrackingEvent
+        {
+            ShipmentId = shipment.Id,
+            Status = shipment.Status,
+            Location = shipment.Origin
+        });
 
-        shipmentRepository.Shipments.Should().ContainSingle(s => s.Id == shipment.Id);
-        shipment.TrackingEvents.Should().ContainSingle(e => e.Status == ShipmentStatus.Created);
+        repository.Shipments.Add(shipment);
+        return shipment;
     }
 
     [Fact]
@@ -40,8 +59,8 @@ public class ShipmentServiceTests
     [Fact]
     public async Task UpdateStatusAsync_SkippingAheadInPipeline_ReturnsInvalidTransition()
     {
-        var service = CreateService(out _, out _);
-        var shipment = await service.CreateAsync("Istanbul", "Konya", 3m, CancellationToken.None);
+        var service = CreateService(out var shipmentRepository, out _);
+        var shipment = SeedShipment(shipmentRepository);
 
         var result = await service.UpdateStatusAsync(shipment.TrackingNumber, ShipmentStatus.Delivered, CancellationToken.None);
 
@@ -52,8 +71,8 @@ public class ShipmentServiceTests
     [Fact]
     public async Task UpdateStatusAsync_WithValidTransition_UpdatesStatusAndAppendsTrackingEvent()
     {
-        var service = CreateService(out _, out _);
-        var shipment = await service.CreateAsync("Istanbul", "Konya", 3m, CancellationToken.None);
+        var service = CreateService(out var shipmentRepository, out _);
+        var shipment = SeedShipment(shipmentRepository);
 
         var result = await service.UpdateStatusAsync(shipment.TrackingNumber, ShipmentStatus.PickedUp, CancellationToken.None);
 
@@ -65,8 +84,8 @@ public class ShipmentServiceTests
     [Fact]
     public async Task AssignToCourierAsync_WithUnknownCourier_ReturnsCourierNotFound()
     {
-        var service = CreateService(out _, out _);
-        var shipment = await service.CreateAsync("Istanbul", "Konya", 3m, CancellationToken.None);
+        var service = CreateService(out var shipmentRepository, out _);
+        var shipment = SeedShipment(shipmentRepository);
 
         var result = await service.AssignToCourierAsync(shipment.TrackingNumber, Guid.NewGuid(), CancellationToken.None);
 
@@ -76,8 +95,8 @@ public class ShipmentServiceTests
     [Fact]
     public async Task AssignToCourierAsync_ReassigningShipment_DeactivatesPreviousAssignment()
     {
-        var service = CreateService(out _, out var courierRepository);
-        var shipment = await service.CreateAsync("Istanbul", "Konya", 3m, CancellationToken.None);
+        var service = CreateService(out var shipmentRepository, out var courierRepository);
+        var shipment = SeedShipment(shipmentRepository);
         var courier1 = new FlowBox.Api.Data.Ef.Models.Courier { Name = "Ahmet", Phone = "+905551112233" };
         var courier2 = new FlowBox.Api.Data.Ef.Models.Courier { Name = "Mehmet", Phone = "+905554445566" };
         courierRepository.Couriers.Add(courier1);

@@ -1,6 +1,7 @@
 using System.Reflection;
 using FlowBox.Api.Data.Ef;
 using FlowBox.Api.Repositories.Courier;
+using FlowBox.Api.Repositories.Order;
 using FlowBox.Api.Repositories.Shipment;
 using FlowBox.Api.Service;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,7 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddRepositories(this IServiceCollection services)
     {
+        services.AddScoped<IOrderRepository, EfOrderRepository>();
         services.AddScoped<IShipmentRepository, EfShipmentRepository>();
         services.AddScoped<ICourierRepository, EfCourierRepository>();
 

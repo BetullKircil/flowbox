@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using FlowBox.Api.Endpoints.Courier;
+using FlowBox.Api.Endpoints.Order;
 using FlowBox.Api.Endpoints.Shipment;
 using FluentAssertions;
 using Xunit;
@@ -23,9 +24,9 @@ public class ShipmentAssignmentAndHistoryEndpointTests : IClassFixture<Integrati
         var courierRes = await _client.PostAsJsonAsync("/api/couriers", courierReq);
         var courier = await courierRes.Content.ReadFromJsonAsync<CreateCourierEndpoint.CreateCourierResponse>();
 
-        var shipmentReq = new CreateShipmentEndpoint.CreateShipmentRequest("Ankara", "Izmir", 2.0m);
-        var shipmentRes = await _client.PostAsJsonAsync("/api/shipments", shipmentReq);
-        var createdShipment = await shipmentRes.Content.ReadFromJsonAsync<CreateShipmentEndpoint.CreateShipmentResponse>();
+        var orderReq = new CreateOrderEndpoint.CreateOrderRequest("Ankara", "Izmir", 2.0m);
+        var orderRes = await _client.PostAsJsonAsync("/api/orders", orderReq);
+        var createdShipment = await orderRes.Content.ReadFromJsonAsync<CreateOrderEndpoint.CreateOrderResponse>();
 
         var assignReq = new AssignShipmentEndpoint.AssignShipmentRequest(
             CourierId: courier!.Id
