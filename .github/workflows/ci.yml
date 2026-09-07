@@ -1,0 +1,43 @@
+name: CI
+
+# main'e her push'ta ve main'e açılan her PR'da çalışır.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore
+        run: dotnet restore FlowBox.sln
+
+      - name: Build
+        run: dotnet build FlowBox.sln --no-restore --configuration Release
+
+      - name: Run unit tests
+        run: dotnet test src/FlowBox.UnitTests/FlowBox.UnitTests.csproj --no-build --configuration Release --logger "trx;LogFileName=unit-tests.trx" --results-directory ./TestResults
+
+      # Testcontainers, GitHub'ın ubuntu-latest runner'ında hazır gelen Docker'ı kullanarak
+      # kendi geçici Postgres container'ını ayağa kaldırır — ekstra bir "services:" bloğuna
+      # gerek yok.
+      - name: Run integration tests
+        run: dotnet test src/FlowBox.IntegrationTests/FlowBox.IntegrationTests.csproj --no-build --configuration Release --logger "trx;LogFileName=integration-tests.trx" --results-directory ./TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/*.trx
