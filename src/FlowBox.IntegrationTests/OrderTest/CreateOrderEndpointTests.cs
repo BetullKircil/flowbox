@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using FlowBox.Api.Data.Ef;
 using FlowBox.Api.Endpoints.Order;
+using FlowBox.Api.Enums;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,6 +24,8 @@ public class CreateOrderEndpointTests : IClassFixture<IntegrationTestWebAppFacto
     [Fact]
     public async Task CreateOrder_WithValidRequest_ReturnsCreatedWithShipmentTrackingNumber()
     {
+        await _client.AuthenticateAsAsync(UserRole.Customer);
+
         var request = new CreateOrderEndpoint.CreateOrderRequest(
             Origin: "Istanbul",
             Destination: "Konya",

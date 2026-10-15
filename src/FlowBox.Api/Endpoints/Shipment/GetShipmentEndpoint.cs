@@ -44,6 +44,7 @@ public class GetShipmentEndpoint : IEndpoint
         builder.MapGet("/api/shipments/{trackingNumber}", Handle)
             .WithOpenApi()
             .WithTags("Shipments")
-            .WithSummary("Get a shipment by its tracking number.");
+            .WithSummary("Get a shipment by its tracking number.")
+            .RequireAuthorization();
     }
 }

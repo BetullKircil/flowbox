@@ -44,6 +44,7 @@ public class AssignShipmentEndpoint : IEndpoint
         builder.MapPatch("/api/shipments/{trackingNumber}/assign", Handle)
             .WithOpenApi()
             .WithTags("Shipments")
-            .WithSummary("Assigns a shipment to a specific courier.");
+            .WithSummary("Assigns a shipment to a specific courier.")
+            .RequireAuthorization(policy => policy.RequireRole("Admin"));
     }
 }

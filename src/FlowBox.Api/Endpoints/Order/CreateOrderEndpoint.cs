@@ -41,6 +41,7 @@ public class CreateOrderEndpoint : IEndpoint
         builder.MapPost("/api/orders", Handle)
             .WithOpenApi()
             .WithTags("Orders")
-            .WithSummary("Places a new order and creates its shipment.");
+            .WithSummary("Places a new order and creates its shipment.")
+            .RequireAuthorization(policy => policy.RequireRole("Customer", "Admin"));
     }
 }

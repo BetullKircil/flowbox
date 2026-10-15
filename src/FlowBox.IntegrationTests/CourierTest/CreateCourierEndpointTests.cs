@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using FlowBox.Api.Endpoints.Courier;
+using FlowBox.Api.Enums;
 using FluentAssertions;
 using Xunit;
 
@@ -18,6 +19,8 @@ public class CreateCourierEndpointTests : IClassFixture<IntegrationTestWebAppFac
     [Fact]
     public async Task CreateCourier_WithValidRequest_ReturnsCreated()
     {
+        await _client.AuthenticateAsAsync(UserRole.Admin);
+
         var request = new CreateCourierEndpoint.CreateCourierRequest("Test Kurye", "+905551234567");
 
         var response = await _client.PostAsJsonAsync("/api/couriers", request);

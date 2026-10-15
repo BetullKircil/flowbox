@@ -17,6 +17,9 @@ builder.Services.AddRepositories();
 // Business (Service) katmanı: iş kuralları burada, HTTP'den habersiz.
 builder.Services.AddService();
 
+// JWT bearer authentication + rol bazlı authorization.
+builder.Services.AddJwtAuthentication(builder.Configuration);
+
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -39,6 +42,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapEndpoints(endpointTypes);
 

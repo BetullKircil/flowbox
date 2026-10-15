@@ -42,6 +42,7 @@ public class GetShipmentsEndpoint : IEndpoint
         builder.MapGet("/api/shipments", Handle)
             .WithOpenApi()
             .WithTags("Shipments")
-            .WithSummary("Gets a paginated list of all shipments.");
+            .WithSummary("Gets a paginated list of all shipments.")
+            .RequireAuthorization(policy => policy.RequireRole("Admin"));
     }
 }
