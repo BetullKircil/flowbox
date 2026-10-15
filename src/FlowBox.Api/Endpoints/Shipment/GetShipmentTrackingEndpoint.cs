@@ -38,6 +38,7 @@ public class GetShipmentTrackingEndpoint : IEndpoint
         builder.MapGet("/api/shipments/{trackingNumber}/tracking", Handle)
             .WithOpenApi()
             .WithTags("Shipments")
-            .WithSummary("Gets the full status timeline (tracking history) of a shipment.");
+            .WithSummary("Gets the full status timeline (tracking history) of a shipment.")
+            .RequireAuthorization();
     }
 }

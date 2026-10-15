@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using FlowBox.Api.Endpoints.Order;
 using FlowBox.Api.Endpoints.Shipment;
+using FlowBox.Api.Enums;
 using FluentAssertions;
 using Xunit;
 
@@ -18,6 +19,7 @@ public class UpdateShipmentStatusAndTrackingEndpointTests : IClassFixture<Integr
 
     private async Task<string> CreateShipmentAsync()
     {
+        await _client.AuthenticateAsAsync(UserRole.Customer);
         var request = new CreateOrderEndpoint.CreateOrderRequest("Istanbul", "Konya", 3.0m);
         var response = await _client.PostAsJsonAsync("/api/orders", request);
         var created = await response.Content.ReadFromJsonAsync<CreateOrderEndpoint.CreateOrderResponse>();
@@ -28,6 +30,9 @@ public class UpdateShipmentStatusAndTrackingEndpointTests : IClassFixture<Integr
     public async Task UpdateStatus_FollowingHappyPath_SucceedsAndBuildsFullTrackingTimeline()
     {
         var trackingNumber = await CreateShipmentAsync();
+
+        // Statü güncellemesi Courier (ya da Admin) rolü gerektiriyor.
+        await _client.AuthenticateAsAsync(UserRole.Courier);
 
         string[] pipeline =
         [
@@ -64,6 +69,7 @@ public class UpdateShipmentStatusAndTrackingEndpointTests : IClassFixture<Integr
     public async Task UpdateStatus_SkippingAheadInPipeline_ReturnsValidationProblem()
     {
         var trackingNumber = await CreateShipmentAsync();
+        await _client.AuthenticateAsAsync(UserRole.Courier);
 
         var response = await _client.PatchAsJsonAsync(
             $"/api/shipments/{trackingNumber}/status",
@@ -76,6 +82,7 @@ public class UpdateShipmentStatusAndTrackingEndpointTests : IClassFixture<Integr
     public async Task UpdateStatus_AfterTerminalStatusReached_IsRejected()
     {
         var trackingNumber = await CreateShipmentAsync();
+        await _client.AuthenticateAsAsync(UserRole.Courier);
 
         var failResponse = await _client.PatchAsJsonAsync(
             $"/api/shipments/{trackingNumber}/status",

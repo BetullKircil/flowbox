@@ -49,6 +49,7 @@ public class UpdateShipmentStatusEndpoint : IEndpoint
         builder.MapPatch("/api/shipments/{trackingNumber}/status", Handle)
             .WithOpenApi()
             .WithTags("Shipments")
-            .WithSummary("Updates the current status of a shipment.");
+            .WithSummary("Updates the current status of a shipment.")
+            .RequireAuthorization(policy => policy.RequireRole("Courier", "Admin"));
     }
 }

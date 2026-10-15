@@ -44,6 +44,7 @@ public class GetShipmentHistoryEndpoint : IEndpoint
         builder.MapGet("/api/shipments/{trackingNumber}/history", Handle)
             .WithOpenApi()
             .WithTags("Shipments")
-            .WithSummary("Gets the assignment history of a shipment.");
+            .WithSummary("Gets the assignment history of a shipment.")
+            .RequireAuthorization();
     }
 }

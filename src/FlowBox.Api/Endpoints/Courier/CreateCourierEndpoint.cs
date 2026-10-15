@@ -34,6 +34,7 @@ public class CreateCourierEndpoint : IEndpoint
         builder.MapPost("/api/couriers", Handle)
             .WithOpenApi()
             .WithTags("Couriers")
-            .WithSummary("Creates a new courier.");
+            .WithSummary("Creates a new courier.")
+            .RequireAuthorization(policy => policy.RequireRole("Admin"));
     }
 }
