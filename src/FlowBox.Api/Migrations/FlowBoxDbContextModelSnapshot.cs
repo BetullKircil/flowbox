@@ -50,6 +50,9 @@ namespace FlowBox.Api.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Destination")
                         .IsRequired()
                         .HasColumnType("text");
@@ -65,6 +68,8 @@ namespace FlowBox.Api.Migrations
                         .HasColumnType("numeric");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
 
                     b.ToTable("Orders");
                 });
@@ -188,6 +193,17 @@ namespace FlowBox.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("FlowBox.Api.Data.Ef.Models.Order", b =>
+                {
+                    b.HasOne("FlowBox.Api.Data.Ef.Models.User", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
                 });
 
             modelBuilder.Entity("FlowBox.Api.Data.Ef.Models.Shipment", b =>

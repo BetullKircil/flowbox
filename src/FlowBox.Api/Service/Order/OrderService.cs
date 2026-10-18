@@ -11,11 +11,16 @@ namespace FlowBox.Api.Service.Order;
 /// </summary>
 public class OrderService(IOrderRepository orderRepository) : IService
 {
+    public Task<IReadOnlyList<Data.Ef.Models.Order>> GetMyOrdersAsync(
+        Guid customerId, int skip, int take, CancellationToken ct) =>
+        orderRepository.GetByCustomerAsync(customerId, skip, take, ct);
+
     public async Task<Data.Ef.Models.Order> CreateAsync(
-        string origin, string destination, decimal weight, CancellationToken ct)
+        Guid customerId, string origin, string destination, decimal weight, CancellationToken ct)
     {
         var order = new Data.Ef.Models.Order
         {
+            CustomerId = customerId,
             Origin = origin,
             Destination = destination,
             Weight = weight

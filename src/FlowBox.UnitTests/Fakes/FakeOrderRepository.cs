@@ -12,4 +12,12 @@ public class FakeOrderRepository : IOrderRepository
         Orders.Add(order);
         return Task.CompletedTask;
     }
+
+    public Task<IReadOnlyList<Order>> GetByCustomerAsync(Guid customerId, int skip, int take, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Order>>(Orders
+            .Where(o => o.CustomerId == customerId)
+            .OrderByDescending(o => o.CreatedAt)
+            .Skip(skip)
+            .Take(take)
+            .ToList());
 }
