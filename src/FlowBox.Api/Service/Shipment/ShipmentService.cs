@@ -10,8 +10,20 @@ public class ShipmentService(
     IShipmentRepository shipmentRepository,
     ICourierRepository courierRepository) : IService
 {
-    public Task<Data.Ef.Models.Shipment?> GetByTrackingNumberAsync(string trackingNumber, CancellationToken ct) =>
-        shipmentRepository.GetByTrackingNumberAsync(trackingNumber, ct);
+    public async Task<Data.Ef.Models.Shipment?> GetByTrackingNumberAsync(
+        string trackingNumber, Caller caller, CancellationToken ct)
+    {
+        var shipment = await shipmentRepository.GetByTrackingNumberAsync(trackingNumber, ct);
+        return shipment is not null && CanAccess(shipment, caller) ? shipment : null;
+    }
+
+    private static bool CanAccess(Data.Ef.Models.Shipment shipment, Caller caller) => caller.Role switch
+    {
+        UserRole.Admin => true,
+        UserRole.Customer => shipment.Order?.CustomerId == caller.UserId,
+        UserRole.Courier => true,
+        _ => false
+    };
 
     public Task<IReadOnlyList<Data.Ef.Models.Shipment>> GetPagedAsync(int skip, int take, CancellationToken ct) =>
         shipmentRepository.GetPagedAsync(skip, take, ct);
@@ -80,10 +92,11 @@ public class ShipmentService(
         return new AssignShipmentResult.Success(shipment.TrackingNumber, courier.Id, courier.Name);
     }
 
-    public async Task<ShipmentHistoryResult> GetAssignmentHistoryAsync(string trackingNumber, CancellationToken ct)
+    public async Task<ShipmentHistoryResult> GetAssignmentHistoryAsync(
+        string trackingNumber, Caller caller, CancellationToken ct)
     {
         var shipment = await shipmentRepository.GetWithAssignmentHistoryAsync(trackingNumber, ct);
-        if (shipment is null)
+        if (shipment is null || !CanAccess(shipment, caller))
         {
             return new ShipmentHistoryResult.NotFound();
         }
@@ -95,10 +108,11 @@ public class ShipmentService(
         return new ShipmentHistoryResult.Found(shipment.TrackingNumber, history);
     }
 
-    public async Task<ShipmentTrackingResult> GetTrackingAsync(string trackingNumber, CancellationToken ct)
+    public async Task<ShipmentTrackingResult> GetTrackingAsync(
+        string trackingNumber, Caller caller, CancellationToken ct)
     {
         var shipment = await shipmentRepository.GetWithTrackingEventsAsync(trackingNumber, ct);
-        if (shipment is null)
+        if (shipment is null || !CanAccess(shipment, caller))
         {
             return new ShipmentTrackingResult.NotFound();
         }

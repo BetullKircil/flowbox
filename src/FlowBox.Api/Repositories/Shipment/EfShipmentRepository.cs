@@ -7,7 +7,9 @@ namespace FlowBox.Api.Repositories.Shipment;
 public class EfShipmentRepository(FlowBoxDbContext db) : IShipmentRepository
 {
     public Task<Data.Ef.Models.Shipment?> GetByTrackingNumberAsync(string trackingNumber, CancellationToken ct) =>
-        db.Shipments.FirstOrDefaultAsync(s => s.TrackingNumber == trackingNumber, ct);
+        db.Shipments
+            .Include(s => s.Order)
+            .FirstOrDefaultAsync(s => s.TrackingNumber == trackingNumber, ct);
 
     public Task<Data.Ef.Models.Shipment?> GetWithAssignmentsAsync(string trackingNumber, CancellationToken ct) =>
         db.Shipments
@@ -17,6 +19,7 @@ public class EfShipmentRepository(FlowBoxDbContext db) : IShipmentRepository
     public Task<Data.Ef.Models.Shipment?> GetWithAssignmentHistoryAsync(string trackingNumber, CancellationToken ct) =>
         db.Shipments
             .AsNoTracking()
+            .Include(s => s.Order)
             .Include(s => s.Assignments)
             .ThenInclude(a => a.Courier)
             .FirstOrDefaultAsync(s => s.TrackingNumber == trackingNumber, ct);
@@ -24,6 +27,7 @@ public class EfShipmentRepository(FlowBoxDbContext db) : IShipmentRepository
     public Task<Data.Ef.Models.Shipment?> GetWithTrackingEventsAsync(string trackingNumber, CancellationToken ct) =>
         db.Shipments
             .AsNoTracking()
+            .Include(s => s.Order)
             .Include(s => s.TrackingEvents)
             .FirstOrDefaultAsync(s => s.TrackingNumber == trackingNumber, ct);
 

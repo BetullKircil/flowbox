@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using FlowBox.Api.Extensions;
 using FlowBox.Api.Service.Shipment;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -13,12 +15,19 @@ public class GetShipmentTrackingEndpoint : IEndpoint
 
     public record GetShipmentTrackingResponse(string TrackingNumber, List<TrackingEventResponse> Events);
 
-    private static async Task<Results<Ok<GetShipmentTrackingResponse>, NotFound<string>>> Handle(
+    private static async Task<Results<Ok<GetShipmentTrackingResponse>, NotFound<string>, UnauthorizedHttpResult>> Handle(
         string trackingNumber,
+        ClaimsPrincipal user,
         ShipmentService shipmentService,
         CancellationToken ct)
     {
-        var result = await shipmentService.GetTrackingAsync(trackingNumber, ct);
+        var caller = user.ToCaller();
+        if (caller is null)
+        {
+            return TypedResults.Unauthorized();
+        }
+
+        var result = await shipmentService.GetTrackingAsync(trackingNumber, caller, ct);
 
         return result switch
         {

@@ -11,6 +11,10 @@ namespace FlowBox.Api.Data.Ef.Models;
 public class Order
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+
+    public Guid CustomerId { get; set; }
+    public User? Customer { get; set; }
+
     public string Origin { get; set; } = string.Empty;
     public string Destination { get; set; } = string.Empty;
     public decimal Weight { get; set; }

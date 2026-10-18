@@ -1,5 +1,6 @@
 using FlowBox.Api.Data.Ef.Models;
 using FlowBox.Api.Enums;
+using FlowBox.Api.Service;
 using FlowBox.Api.Service.Shipment;
 using FluentAssertions;
 using FlowBox.UnitTests.Fakes;
@@ -24,11 +25,18 @@ public class ShipmentServiceTests
         return new ShipmentService(shipmentRepository, courierRepository);
     }
 
-    private static FlowBox.Api.Data.Ef.Models.Shipment SeedShipment(FakeShipmentRepository repository)
+    private static FlowBox.Api.Data.Ef.Models.Shipment SeedShipment(
+        FakeShipmentRepository repository, Guid? customerId = null)
     {
+        var order = new FlowBox.Api.Data.Ef.Models.Order
+        {
+            CustomerId = customerId ?? Guid.NewGuid()
+        };
+
         var shipment = new FlowBox.Api.Data.Ef.Models.Shipment
         {
-            OrderId = Guid.NewGuid(),
+            OrderId = order.Id,
+            Order = order,
             Origin = "Istanbul",
             Destination = "Konya",
             Weight = 3m,
@@ -109,5 +117,92 @@ public class ShipmentServiceTests
         shipment.Assignments.Should().HaveCount(2);
         shipment.Assignments.Single(a => a.CourierId == courier1.Id).IsActive.Should().BeFalse();
         shipment.Assignments.Single(a => a.CourierId == courier2.Id).IsActive.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetByTrackingNumberAsync_AsOwnerCustomer_ReturnsShipment()
+    {
+        var service = CreateService(out var shipmentRepository, out _);
+        var ownerId = Guid.NewGuid();
+        var shipment = SeedShipment(shipmentRepository, ownerId);
+
+        var result = await service.GetByTrackingNumberAsync(
+            shipment.TrackingNumber, new Caller(ownerId, UserRole.Customer), CancellationToken.None);
+
+        result.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task GetByTrackingNumberAsync_AsAnotherCustomer_ReturnsNull()
+    {
+        var service = CreateService(out var shipmentRepository, out _);
+        var shipment = SeedShipment(shipmentRepository, Guid.NewGuid());
+
+        var result = await service.GetByTrackingNumberAsync(
+            shipment.TrackingNumber, new Caller(Guid.NewGuid(), UserRole.Customer), CancellationToken.None);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetByTrackingNumberAsync_AsAdmin_ReturnsShipmentOfAnyCustomer()
+    {
+        var service = CreateService(out var shipmentRepository, out _);
+        var shipment = SeedShipment(shipmentRepository, Guid.NewGuid());
+
+        var result = await service.GetByTrackingNumberAsync(
+            shipment.TrackingNumber, new Caller(Guid.NewGuid(), UserRole.Admin), CancellationToken.None);
+
+        result.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task GetTrackingAsync_AsOwnerCustomer_ReturnsFound()
+    {
+        var service = CreateService(out var shipmentRepository, out _);
+        var ownerId = Guid.NewGuid();
+        var shipment = SeedShipment(shipmentRepository, ownerId);
+
+        var result = await service.GetTrackingAsync(
+            shipment.TrackingNumber, new Caller(ownerId, UserRole.Customer), CancellationToken.None);
+
+        result.Should().BeOfType<ShipmentTrackingResult.Found>();
+    }
+
+    [Fact]
+    public async Task GetTrackingAsync_AsAnotherCustomer_ReturnsNotFound()
+    {
+        var service = CreateService(out var shipmentRepository, out _);
+        var shipment = SeedShipment(shipmentRepository, Guid.NewGuid());
+
+        var result = await service.GetTrackingAsync(
+            shipment.TrackingNumber, new Caller(Guid.NewGuid(), UserRole.Customer), CancellationToken.None);
+
+        result.Should().BeOfType<ShipmentTrackingResult.NotFound>();
+    }
+
+    [Fact]
+    public async Task GetAssignmentHistoryAsync_AsOwnerCustomer_ReturnsFound()
+    {
+        var service = CreateService(out var shipmentRepository, out _);
+        var ownerId = Guid.NewGuid();
+        var shipment = SeedShipment(shipmentRepository, ownerId);
+
+        var result = await service.GetAssignmentHistoryAsync(
+            shipment.TrackingNumber, new Caller(ownerId, UserRole.Customer), CancellationToken.None);
+
+        result.Should().BeOfType<ShipmentHistoryResult.Found>();
+    }
+
+    [Fact]
+    public async Task GetAssignmentHistoryAsync_AsAnotherCustomer_ReturnsNotFound()
+    {
+        var service = CreateService(out var shipmentRepository, out _);
+        var shipment = SeedShipment(shipmentRepository, Guid.NewGuid());
+
+        var result = await service.GetAssignmentHistoryAsync(
+            shipment.TrackingNumber, new Caller(Guid.NewGuid(), UserRole.Customer), CancellationToken.None);
+
+        result.Should().BeOfType<ShipmentHistoryResult.NotFound>();
     }
 }

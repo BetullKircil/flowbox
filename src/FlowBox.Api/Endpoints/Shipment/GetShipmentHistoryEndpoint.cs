@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using FlowBox.Api.Extensions;
 using FlowBox.Api.Service.Shipment;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -15,12 +17,19 @@ public class GetShipmentHistoryEndpoint : IEndpoint
         string TrackingNumber,
         List<HistoryRecordResponse> History);
 
-    private static async Task<Results<Ok<GetShipmentHistoryResponse>, NotFound<string>>> Handle(
+    private static async Task<Results<Ok<GetShipmentHistoryResponse>, NotFound<string>, UnauthorizedHttpResult>> Handle(
         string trackingNumber,
+        ClaimsPrincipal user,
         ShipmentService shipmentService,
         CancellationToken ct)
     {
-        var result = await shipmentService.GetAssignmentHistoryAsync(trackingNumber, ct);
+        var caller = user.ToCaller();
+        if (caller is null)
+        {
+            return TypedResults.Unauthorized();
+        }
+
+        var result = await shipmentService.GetAssignmentHistoryAsync(trackingNumber, caller, ct);
 
         return result switch
         {
