@@ -86,4 +86,43 @@ public class AuthServiceTests
 
         result.Should().BeOfType<LoginResult.InvalidCredentials>();
     }
+
+    [Fact]
+    public async Task EnsureAdminAsync_WhenEmailNotRegistered_CreatesAdminWhoCanLogin()
+    {
+        var service = CreateService(out var userRepository);
+
+        var created = await service.EnsureAdminAsync("root@flowbox.test", "SecurePass123!", CancellationToken.None);
+
+        created.Should().BeTrue();
+        userRepository.Users.Should().ContainSingle(u => u.Email == "root@flowbox.test" && u.Role == UserRole.Admin);
+
+        var login = await service.LoginAsync("root@flowbox.test", "SecurePass123!", CancellationToken.None);
+        login.Should().BeOfType<LoginResult.Success>();
+        ((LoginResult.Success)login).Role.Should().Be("Admin");
+    }
+
+    [Fact]
+    public async Task EnsureAdminAsync_CalledTwice_IsIdempotent()
+    {
+        var service = CreateService(out var userRepository);
+
+        await service.EnsureAdminAsync("root@flowbox.test", "SecurePass123!", CancellationToken.None);
+        var secondCall = await service.EnsureAdminAsync("root@flowbox.test", "SecurePass123!", CancellationToken.None);
+
+        secondCall.Should().BeFalse("kullanıcı zaten varken yeniden oluşturulmamalı");
+        userRepository.Users.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task EnsureAdminAsync_WhenEmailBelongsToExistingUser_DoesNotChangeTheirRole()
+    {
+        var service = CreateService(out var userRepository);
+        await service.RegisterAsync("someone@flowbox.test", "SecurePass123!", UserRole.Customer, CancellationToken.None);
+
+        var created = await service.EnsureAdminAsync("someone@flowbox.test", "OtherPass123!", CancellationToken.None);
+
+        created.Should().BeFalse();
+        userRepository.Users.Single().Role.Should().Be(UserRole.Customer, "seed mevcut bir kullanıcıyı sessizce Admin'e yükseltmemeli");
+    }
 }

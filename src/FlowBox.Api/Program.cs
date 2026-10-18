@@ -2,6 +2,7 @@ using System.Reflection;
 using FlowBox.Api.Data.Ef;
 using FlowBox.Api.Endpoints;
 using FlowBox.Api.Registry;
+using FlowBox.Api.Service.Auth;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
@@ -53,6 +54,15 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<FlowBoxDbContext>();
     db.Database.Migrate();
+
+    var adminSeed = app.Configuration.GetSection(AdminSeedSettings.SectionName).Get<AdminSeedSettings>();
+    if (adminSeed is not null
+        && !string.IsNullOrWhiteSpace(adminSeed.Email)
+        && !string.IsNullOrWhiteSpace(adminSeed.Password))
+    {
+        var authService = scope.ServiceProvider.GetRequiredService<AuthService>();
+        await authService.EnsureAdminAsync(adminSeed.Email, adminSeed.Password, CancellationToken.None);
+    }
 }
 
 app.Run();

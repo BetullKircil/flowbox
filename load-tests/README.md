@@ -25,7 +25,8 @@ k6 run -e BASE_URL=http://staging.example.com load-tests/tracking-lookup.js
 
 ## Senaryo ne yapıyor
 
-`tracking-lookup.js`: önce bir sipariş oluşturup bir tracking number alıyor, sonra
+`tracking-lookup.js`: önce her çalıştırmada benzersiz bir Customer kaydedip giriş yapıyor
+(endpoint'ler JWT istiyor), onunla bir sipariş oluşturup tracking number alıyor, sonra
 o tek kargoyu **giderek artan sayıda eşzamanlı kullanıcı** (20 → 100 → 300 VU) ile
 tekrar tekrar sorguluyor — "müşteri kargom nerede diye sürekli soruyor" senaryosunun
 simülasyonu. Toplam ~3.5 dakika sürüyor.

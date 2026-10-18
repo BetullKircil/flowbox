@@ -35,23 +35,47 @@ export const options = {
 // setup() sadece bir kez, testin başında çalışır — tüm VU'ların paylaşacağı
 // tracking number'ı burada üretiyoruz.
 export function setup() {
-  const res = http.post(
-    `${BASE_URL}/api/orders`,
-    JSON.stringify({ origin: 'Istanbul', destination: 'Konya', weight: 3 }),
-    { headers: { 'Content-Type': 'application/json' } }
-  );
+  const jsonHeaders = { 'Content-Type': 'application/json' };
 
-  if (res.status !== 201) {
-    throw new Error(`Setup başarısız: sipariş oluşturulamadı (status=${res.status}, body=${res.body})`);
+  const email = `loadtest-${Date.now()}-${Math.floor(Math.random() * 1e6)}@flowbox.test`;
+  const password = 'LoadTestPass123!';
+
+  const registerRes = http.post(
+    `${BASE_URL}/api/auth/register`,
+    JSON.stringify({ email, password }),
+    { headers: jsonHeaders }
+  );
+  if (registerRes.status !== 201) {
+    throw new Error(`Setup başarısız: kayıt olunamadı (status=${registerRes.status}, body=${registerRes.body})`);
   }
 
-  const body = JSON.parse(res.body);
-  return { trackingNumber: body.trackingNumber };
+  const loginRes = http.post(
+    `${BASE_URL}/api/auth/login`,
+    JSON.stringify({ email, password }),
+    { headers: jsonHeaders }
+  );
+  if (loginRes.status !== 200) {
+    throw new Error(`Setup başarısız: giriş yapılamadı (status=${loginRes.status})`);
+  }
+  const token = JSON.parse(loginRes.body).token;
+
+  const orderRes = http.post(
+    `${BASE_URL}/api/orders`,
+    JSON.stringify({ origin: 'Istanbul', destination: 'Konya', weight: 3 }),
+    { headers: { ...jsonHeaders, Authorization: `Bearer ${token}` } }
+  );
+  if (orderRes.status !== 201) {
+    throw new Error(`Setup başarısız: sipariş oluşturulamadı (status=${orderRes.status}, body=${orderRes.body})`);
+  }
+
+  return { token, trackingNumber: JSON.parse(orderRes.body).trackingNumber };
 }
 
 // default() her VU için tekrar tekrar çalışan asıl senaryo.
 export default function (data) {
-  const res = http.get(`${BASE_URL}/api/shipments/${data.trackingNumber}`);
+  const res = http.get(`${BASE_URL}/api/shipments/${data.trackingNumber}`, {
+    headers: { Authorization: `Bearer ${data.token}` },
+  });
 
   check(res, {
     'status 200': (r) => r.status === 200,

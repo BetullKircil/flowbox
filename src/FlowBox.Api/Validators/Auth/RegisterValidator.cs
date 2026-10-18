@@ -1,5 +1,4 @@
 using FlowBox.Api.Endpoints.Auth;
-using FlowBox.Api.Enums;
 using FluentValidation;
 
 namespace FlowBox.Api.Validators.Auth;
@@ -15,10 +14,5 @@ public class RegisterValidator : AbstractValidator<RegisterEndpoint.RegisterRequ
         RuleFor(x => x.Password)
             .NotEmpty().WithMessage("Şifre boş olamaz.")
             .MinimumLength(8).WithMessage("Şifre en az 8 karakter olmalıdır.");
-
-        RuleFor(x => x.Role)
-            .NotEmpty().WithMessage("Rol boş olamaz.")
-            .IsEnumName(typeof(UserRole), caseSensitive: true)
-            .WithMessage($"Geçersiz rol. Geçerli değerler: {string.Join(", ", Enum.GetNames<UserRole>())}");
     }
 }

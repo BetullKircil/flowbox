@@ -42,6 +42,12 @@ public class AuthService(IUserRepository userRepository, IOptions<JwtSettings> j
         return new RegisterResult.Success(user.Id, user.Email, user.Role.ToString());
     }
 
+    public async Task<bool> EnsureAdminAsync(string email, string password, CancellationToken ct)
+    {
+        var result = await RegisterAsync(email, password, UserRole.Admin, ct);
+        return result is RegisterResult.Success;
+    }
+
     public async Task<LoginResult> LoginAsync(string email, string password, CancellationToken ct)
     {
         var user = await userRepository.GetByEmailAsync(email, ct);
