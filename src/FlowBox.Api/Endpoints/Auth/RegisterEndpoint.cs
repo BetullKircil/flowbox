@@ -8,7 +8,7 @@ namespace FlowBox.Api.Endpoints.Auth;
 
 public class RegisterEndpoint : IEndpoint
 {
-    public record RegisterRequest(string Email, string Password, string Role);
+    public record RegisterRequest(string Email, string Password);
 
     public record RegisterResponse(Guid Id, string Email, string Role);
 
@@ -24,8 +24,7 @@ public class RegisterEndpoint : IEndpoint
             return TypedResults.ValidationProblem(validationResult.ToDictionary());
         }
 
-        var role = Enum.Parse<UserRole>(request.Role);
-        var result = await authService.RegisterAsync(request.Email, request.Password, role, ct);
+        var result = await authService.RegisterAsync(request.Email, request.Password, UserRole.Customer, ct);
 
         return result switch
         {
@@ -45,6 +44,6 @@ public class RegisterEndpoint : IEndpoint
         builder.MapPost("/api/auth/register", Handle)
             .WithOpenApi()
             .WithTags("Auth")
-            .WithSummary("Registers a new user (Customer, Courier, or Admin).");
+            .WithSummary("Registers a new Customer account.");
     }
 }

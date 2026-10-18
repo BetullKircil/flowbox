@@ -5,30 +5,43 @@ using FlowBox.Api.Enums;
 
 namespace FlowBox.IntegrationTests;
 
-/// <summary>
-/// Integration testlerin korumalı endpoint'lere istek atabilmesi için bir kullanıcı
-/// kaydedip giriş yapar ve HttpClient'ın Authorization header'ını o kullanıcının
-/// JWT'siyle doldurur. Aynı client üzerinde tekrar çağrılırsa (farklı bir rolle)
-/// önceki token'ın yerini alır — bir testin içinde rol değiştirmek için kullanılabilir.
-/// </summary>
 public static class TestAuthHelper
 {
+    public const string SeedAdminEmail = "seed-admin@flowbox.test";
+    public const string SeedAdminPassword = "SeedAdminPass123!";
+
     private const string TestPassword = "TestPassword123!";
 
     public static async Task AuthenticateAsAsync(this HttpClient client, UserRole role)
     {
         var email = $"{Guid.NewGuid():N}@flowbox.test";
 
-        await client.PostAsJsonAsync(
-            "/api/auth/register",
-            new RegisterEndpoint.RegisterRequest(email, TestPassword, role.ToString()));
+        if (role == UserRole.Customer)
+        {
+            await client.PostAsJsonAsync(
+                "/api/auth/register",
+                new RegisterEndpoint.RegisterRequest(email, TestPassword));
+        }
+        else
+        {
+            await client.LoginAsync(SeedAdminEmail, SeedAdminPassword);
+            await client.PostAsJsonAsync(
+                "/api/admin/users",
+                new CreateUserEndpoint.CreateUserRequest(email, TestPassword, role.ToString()));
+        }
 
+        await client.LoginAsync(email, TestPassword);
+    }
+
+    public static async Task<string> LoginAsync(this HttpClient client, string email, string password)
+    {
         var loginResponse = await client.PostAsJsonAsync(
             "/api/auth/login",
-            new LoginEndpoint.LoginRequest(email, TestPassword));
+            new LoginEndpoint.LoginRequest(email, password));
 
         var body = await loginResponse.Content.ReadFromJsonAsync<LoginEndpoint.LoginResponse>();
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", body!.Token);
+        return body.Token;
     }
 }
