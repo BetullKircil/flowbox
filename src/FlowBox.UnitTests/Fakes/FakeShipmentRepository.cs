@@ -22,6 +22,14 @@ public class FakeShipmentRepository : IShipmentRepository
     public Task<IReadOnlyList<Shipment>> GetPagedAsync(int skip, int take, CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<Shipment>>(Shipments.Skip(skip).Take(take).ToList());
 
+    public Task<IReadOnlyList<Shipment>> GetActiveByCourierAsync(Guid courierId, int skip, int take, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Shipment>>(Shipments
+            .Where(s => s.Assignments.Any(a => a.CourierId == courierId && a.IsActive))
+            .OrderByDescending(s => s.CreatedAt)
+            .Skip(skip)
+            .Take(take)
+            .ToList());
+
     public Task AddAsync(Shipment shipment, CancellationToken ct)
     {
         Shipments.Add(shipment);

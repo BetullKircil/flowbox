@@ -45,7 +45,7 @@ public class AuthServiceTests
         var service = CreateService(out _);
         await service.RegisterAsync("dup@flowbox.test", "SecurePass123!", UserRole.Customer, CancellationToken.None);
 
-        var result = await service.RegisterAsync("dup@flowbox.test", "AnotherPass123!", UserRole.Courier, CancellationToken.None);
+        var result = await service.RegisterAsync("dup@flowbox.test", "AnotherPass123!", UserRole.Admin, CancellationToken.None);
 
         result.Should().BeOfType<RegisterResult.EmailAlreadyRegistered>();
     }
@@ -54,7 +54,9 @@ public class AuthServiceTests
     public async Task LoginAsync_WithCorrectCredentials_ReturnsTokenCarryingRoleClaim()
     {
         var service = CreateService(out _);
-        await service.RegisterAsync("courier@flowbox.test", "SecurePass123!", UserRole.Courier, CancellationToken.None);
+        await service.RegisterAsync(
+            "courier@flowbox.test", "SecurePass123!", UserRole.Courier,
+            new CourierProfile("Ahmet Kurye", "+905559876543"), CancellationToken.None);
 
         var result = await service.LoginAsync("courier@flowbox.test", "SecurePass123!", CancellationToken.None);
 
@@ -124,5 +126,49 @@ public class AuthServiceTests
 
         created.Should().BeFalse();
         userRepository.Users.Single().Role.Should().Be(UserRole.Customer, "seed mevcut bir kullanıcıyı sessizce Admin'e yükseltmemeli");
+    }
+
+    [Fact]
+    public async Task RegisterAsync_CourierWithProfile_CreatesCourierLinkedToTheUser()
+    {
+        var service = CreateService(out var userRepository);
+
+        var result = await service.RegisterAsync(
+            "ahmet@flowbox.test", "SecurePass123!", UserRole.Courier,
+            new CourierProfile("Ahmet Kurye", "+905559876543"), CancellationToken.None);
+
+        var success = result.Should().BeOfType<RegisterResult.Success>().Subject;
+        var user = userRepository.Users.Should().ContainSingle().Subject;
+        user.Courier.Should().NotBeNull();
+        user.Courier!.UserId.Should().Be(user.Id);
+        user.Courier.Name.Should().Be("Ahmet Kurye");
+        user.Courier.Phone.Should().Be("+905559876543");
+        success.CourierId.Should().Be(user.Courier.Id);
+    }
+
+    [Fact]
+    public async Task RegisterAsync_CourierWithoutProfile_ReturnsCourierProfileRequiredAndStoresNothing()
+    {
+        var service = CreateService(out var userRepository);
+
+        var result = await service.RegisterAsync(
+            "ahmet@flowbox.test", "SecurePass123!", UserRole.Courier, CancellationToken.None);
+
+        result.Should().BeOfType<RegisterResult.CourierProfileRequired>();
+        userRepository.Users.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task RegisterAsync_NonCourierRole_IgnoresCourierProfile()
+    {
+        var service = CreateService(out var userRepository);
+
+        var result = await service.RegisterAsync(
+            "ayse@flowbox.test", "SecurePass123!", UserRole.Customer,
+            new CourierProfile("Ayşe", "+905551112233"), CancellationToken.None);
+
+        var success = result.Should().BeOfType<RegisterResult.Success>().Subject;
+        success.CourierId.Should().BeNull();
+        userRepository.Users.Single().Courier.Should().BeNull();
     }
 }

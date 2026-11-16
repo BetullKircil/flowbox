@@ -10,9 +10,6 @@ public class FakeCourierRepository : ICourierRepository
     public Task<Courier?> GetByIdAsync(Guid id, CancellationToken ct) =>
         Task.FromResult(Couriers.FirstOrDefault(c => c.Id == id));
 
-    public Task AddAsync(Courier courier, CancellationToken ct)
-    {
-        Couriers.Add(courier);
-        return Task.CompletedTask;
-    }
+    public Task<Courier?> GetByUserIdAsync(Guid userId, CancellationToken ct) =>
+        Task.FromResult(Couriers.FirstOrDefault(c => c.UserId == userId));
 }

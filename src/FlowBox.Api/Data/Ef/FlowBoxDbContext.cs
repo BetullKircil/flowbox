@@ -19,5 +19,11 @@ public class FlowBoxDbContext(DbContextOptions<FlowBoxDbContext> options) : DbCo
             .WithMany()
             .HasForeignKey(o => o.CustomerId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Courier>()
+            .HasOne(c => c.User)
+            .WithOne(u => u.Courier)
+            .HasForeignKey<Courier>(c => c.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

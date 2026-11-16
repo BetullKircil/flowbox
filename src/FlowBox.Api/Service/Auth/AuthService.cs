@@ -21,9 +21,18 @@ public class AuthService(IUserRepository userRepository, IOptions<JwtSettings> j
     private readonly PasswordHasher<User> _passwordHasher = new();
     private readonly JwtSettings _jwtSettings = jwtOptions.Value;
 
+    public Task<RegisterResult> RegisterAsync(
+        string email, string password, UserRole role, CancellationToken ct) =>
+        RegisterAsync(email, password, role, null, ct);
+
     public async Task<RegisterResult> RegisterAsync(
-        string email, string password, UserRole role, CancellationToken ct)
+        string email, string password, UserRole role, CourierProfile? courierProfile, CancellationToken ct)
     {
+        if (role == UserRole.Courier && courierProfile is null)
+        {
+            return new RegisterResult.CourierProfileRequired();
+        }
+
         var existing = await userRepository.GetByEmailAsync(email, ct);
         if (existing is not null)
         {
@@ -37,9 +46,19 @@ public class AuthService(IUserRepository userRepository, IOptions<JwtSettings> j
         };
         user.PasswordHash = _passwordHasher.HashPassword(user, password);
 
+        if (role == UserRole.Courier)
+        {
+            user.Courier = new Data.Ef.Models.Courier
+            {
+                UserId = user.Id,
+                Name = courierProfile!.Name,
+                Phone = courierProfile.Phone
+            };
+        }
+
         await userRepository.AddAsync(user, ct);
 
-        return new RegisterResult.Success(user.Id, user.Email, user.Role.ToString());
+        return new RegisterResult.Success(user.Id, user.Email, user.Role.ToString(), user.Courier?.Id);
     }
 
     public async Task<bool> EnsureAdminAsync(string email, string password, CancellationToken ct)

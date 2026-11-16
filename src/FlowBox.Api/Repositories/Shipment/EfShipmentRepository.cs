@@ -9,6 +9,7 @@ public class EfShipmentRepository(FlowBoxDbContext db) : IShipmentRepository
     public Task<Data.Ef.Models.Shipment?> GetByTrackingNumberAsync(string trackingNumber, CancellationToken ct) =>
         db.Shipments
             .Include(s => s.Order)
+            .Include(s => s.Assignments)
             .FirstOrDefaultAsync(s => s.TrackingNumber == trackingNumber, ct);
 
     public Task<Data.Ef.Models.Shipment?> GetWithAssignmentsAsync(string trackingNumber, CancellationToken ct) =>
@@ -28,12 +29,23 @@ public class EfShipmentRepository(FlowBoxDbContext db) : IShipmentRepository
         db.Shipments
             .AsNoTracking()
             .Include(s => s.Order)
+            .Include(s => s.Assignments)
             .Include(s => s.TrackingEvents)
             .FirstOrDefaultAsync(s => s.TrackingNumber == trackingNumber, ct);
 
     public async Task<IReadOnlyList<Data.Ef.Models.Shipment>> GetPagedAsync(int skip, int take, CancellationToken ct) =>
         await db.Shipments
             .AsNoTracking()
+            .OrderByDescending(s => s.CreatedAt)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<Data.Ef.Models.Shipment>> GetActiveByCourierAsync(
+        Guid courierId, int skip, int take, CancellationToken ct) =>
+        await db.Shipments
+            .AsNoTracking()
+            .Where(s => s.Assignments.Any(a => a.CourierId == courierId && a.IsActive))
             .OrderByDescending(s => s.CreatedAt)
             .Skip(skip)
             .Take(take)

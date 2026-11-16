@@ -71,12 +71,14 @@ stateDiagram-v2
 | Rol | Yapabildikleri |
 |---|---|
 | **Customer** | Kayıt olur, sipariş verir, **sadece kendi** kargolarını görür/takip eder (`/api/orders/mine`) |
-| **Courier** | Kargonun statüsünü günceller (alındı, yolda, teslim edildi...) |
-| **Admin** | Her şeyi görür, kurye kaydı ve kullanıcı hesabı oluşturur, kargoyu kuryeye atar |
+| **Courier** | **Sadece kendisine atanmış** kargoların statüsünü günceller (alındı, yolda, teslim edildi...) ve görev listesini görür (`/api/couriers/me/shipments`) |
+| **Admin** | Her şeyi görür, kullanıcı ve kurye hesabı oluşturur, kargoyu kuryeye atar |
 
 - Herkese açık kayıt (`/api/auth/register`) her zaman **Customer** oluşturur. Courier ve Admin hesaplarını yalnızca
-  bir Admin açabilir (`POST /api/admin/users`).
-- Başkasının kargosunu sorgulayan Customer **404** alır, kargonun varlığı sızdırılmaz.
+  bir Admin açabilir (`POST /api/admin/users`). Courier hesabı açılırken ad ve telefon da aynı istekte verilir; kullanıcı
+  hesabı ile kurye kaydı birlikte oluşur ve birbirine bağlanır.
+- Başkasının kargosunu sorgulayan Customer, ve kendisine **aktif olarak atanmamış** kargoyu sorgulayan ya da güncelleyen
+  Courier **404** alır, kargonun varlığı sızdırılmaz. Kargo başka kuryeye atanınca önceki kurye erişimini kaybeder.
 
 ### 3. Uçtan uca örnek
 
@@ -93,26 +95,25 @@ CUSTOMER_TOKEN=$(login ayse@example.com 'Sifre12345!')
 TN=$(curl -s -X POST $U/api/orders -H "$J" -H "Authorization: Bearer $CUSTOMER_TOKEN" \
   -d '{"origin":"Istanbul","destination":"Konya","weight":3}' | jq -r '.trackingNumber')
 
-# Admin (seed hesabı) kurye kaydı ve kurye kullanıcısı oluşturur, kargoyu atar
+# Admin (seed hesabı) kurye hesabını açar (kurye kaydı aynı istekte oluşur) ve kargoyu atar
 ADMIN_EMAIL=$(jq -r '.AdminSeed.Email' src/FlowBox.Api/appsettings.Development.json)
 ADMIN_PASSWORD=$(jq -r '.AdminSeed.Password' src/FlowBox.Api/appsettings.Development.json)
 ADMIN_TOKEN=$(login "$ADMIN_EMAIL" "$ADMIN_PASSWORD")
-COURIER_ID=$(curl -s -X POST $U/api/couriers -H "$J" -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -d '{"name":"Ahmet Kurye","phone":"+905559876543"}' | jq -r '.id')
-curl -s -X POST $U/api/admin/users -H "$J" -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -d '{"email":"ahmet@example.com","password":"Sifre12345!","role":"Courier"}'
+COURIER_ID=$(curl -s -X POST $U/api/admin/users -H "$J" -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d '{"email":"ahmet@example.com","password":"Sifre12345!","role":"Courier","name":"Ahmet Kurye","phone":"+905559876543"}' \
+  | jq -r '.courierId')
 curl -s -X PATCH $U/api/shipments/$TN/assign -H "$J" -H "Authorization: Bearer $ADMIN_TOKEN" \
   -d "{\"courierId\":\"$COURIER_ID\"}"
 
-# Kurye statüyü günceller, müşteri takip eder
+# Kurye görev listesini görür, statüyü günceller; müşteri takip eder
 COURIER_TOKEN=$(login ahmet@example.com 'Sifre12345!')
+curl -s $U/api/couriers/me/shipments -H "Authorization: Bearer $COURIER_TOKEN" | jq
 curl -s -X PATCH $U/api/shipments/$TN/status -H "$J" -H "Authorization: Bearer $COURIER_TOKEN" \
   -d '{"status":"PickedUp"}'
 curl -s $U/api/shipments/$TN/tracking -H "Authorization: Bearer $CUSTOMER_TOKEN" | jq
 ```
 
-> Şu an "kargonun atandığı **Courier kaydı**" ile "**Courier rolündeki kullanıcı hesabı**" birbirine bağlı değil
-> (yukarıda ikisi ayrı ayrı açılıyor). Bağlanması planlı işlerden biri.
+> Atanmamış başka bir kuryenin bu kargoyu sorgulaması ya da güncellemesi 404 döner.
 
 ### 4. Geliştirme akışı
 
@@ -133,9 +134,10 @@ dosyalarında tanımlıdır.
 | `POST /api/auth/register`, `POST /api/auth/login` | Herkes |
 | `POST /api/admin/users` | Admin |
 | `POST /api/orders`, `GET /api/orders/mine` | Customer, Admin |
-| `GET /api/shipments/{tn}`, `/tracking`, `/history` | Giriş yapmış kullanıcı (Customer için sahiplik kuralıyla) |
-| `PATCH /api/shipments/{tn}/status` | Courier, Admin |
-| `PATCH /api/shipments/{tn}/assign`, `POST /api/couriers`, `GET /api/shipments` | Admin |
+| `GET /api/shipments/{tn}`, `/tracking`, `/history` | Giriş yapmış kullanıcı (Customer kendi, Courier kendisine atanmış kargo için) |
+| `PATCH /api/shipments/{tn}/status` | Courier (kendisine atanmış kargo), Admin |
+| `GET /api/couriers/me/shipments` | Courier |
+| `PATCH /api/shipments/{tn}/assign`, `GET /api/shipments` | Admin |
 
 Korumalı endpoint'ler `Authorization: Bearer <token>` header'ı ister.
 
@@ -274,7 +276,7 @@ dotnet test src/FlowBox.IntegrationTests/FlowBox.IntegrationTests.csproj   # Doc
 
 - **Unit testler:** statü geçiş kuralları, servislerin iş mantığı (sahte repository'lerle), validator'lar.
 - **Integration testler:** Testcontainers ile gerçek PostgreSQL üzerinde uçtan uca HTTP testleri; kimlik doğrulama,
-  rol kuralları (401/403), müşteri sahipliği (404) ve veritabanına kalıcı yazım doğrulanır.
+  rol kuralları (401/403), müşteri ve kurye sahipliği (404) ve veritabanına kalıcı yazım doğrulanır.
 
 ## Yük testi
 
@@ -288,10 +290,10 @@ istek/sn, p95 ≈ 8–14 ms, %0 hata. Ayrıntılar `load-tests/README.md` içind
 ## Durum ve yol haritası
 
 **Yapılanlar:** modüler monolit, katmanlı mimari, statü pipeline'ı ve takip zaman çizelgesi, Order/Shipment ayrımı,
-JWT kimlik doğrulama, rol bazlı yetkilendirme, müşteri sahipliği, unit + integration testler, Docker, CI, yük testi.
+JWT kimlik doğrulama, rol bazlı yetkilendirme, müşteri ve kurye sahipliği, unit + integration testler, Docker, CI,
+yük testi.
 
 **Sıradaki / planlananlar:**
-- Kurye sahipliği: kurye sadece kendisine atanmış kargoları görsün (User ↔ Courier bağlantısı)
 - Takip numarası için benzersizlik kısıtı ve index
 - Event-driven mimari (Kafka), cache (Redis), arama (Elasticsearch)
 - Observability (tracing, metrikler), mikroservislere ayırma

@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using FlowBox.Api.Enums;
+using FlowBox.Api.Extensions;
 using FlowBox.Api.Service.Shipment;
 using FluentValidation;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -8,13 +10,20 @@ namespace FlowBox.Api.Endpoints.Shipment;
 
 public class UpdateShipmentStatusEndpoint : IEndpoint
 {
-    private static async Task<Results<Ok<UpdateShipmentStatusResponse>, NotFound, ValidationProblem>> Handle(
+    private static async Task<Results<Ok<UpdateShipmentStatusResponse>, NotFound, ValidationProblem, UnauthorizedHttpResult>> Handle(
         string trackingNumber,
         [FromBody] UpdateShipmentStatusRequest request,
+        ClaimsPrincipal user,
         ShipmentService shipmentService,
         IValidator<UpdateShipmentStatusRequest> validator,
         CancellationToken ct)
     {
+        var caller = user.ToCaller();
+        if (caller is null)
+        {
+            return TypedResults.Unauthorized();
+        }
+
         var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
         {
@@ -22,7 +31,7 @@ public class UpdateShipmentStatusEndpoint : IEndpoint
         }
 
         var newStatus = Enum.Parse<ShipmentStatus>(request.Status);
-        var result = await shipmentService.UpdateStatusAsync(trackingNumber, newStatus, ct);
+        var result = await shipmentService.UpdateStatusAsync(trackingNumber, newStatus, caller, ct);
 
         return result switch
         {
