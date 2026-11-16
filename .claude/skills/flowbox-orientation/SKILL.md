@@ -1,161 +1,161 @@
 ---
 name: flowbox-orientation
 description: >-
-  FlowBox projesinde herhangi bir işe başlamadan ÖNCE oku. Projenin haritasını, katman/isimlendirme
-  kurallarını, domain modelini (Order → Shipment, statü pipeline'ı), auth ve rol/sahiplik kurallarını,
-  test/migration/Docker/CI komutlarını ve bilinen eksikleri anlatır. Şu durumlarda kullan: projeye uzun
-  süre sonra dönüldüğünde, "bu projede ne yapılmış / nasıl çalışıyor" sorulduğunda, yeni endpoint,
-  service, repository, entity, migration, test ya da yetki kuralı eklenirken, bir test/CI/Docker hatası
-  ayıklanırken. Orients a fresh session on the FlowBox logistics API (.NET 9, PostgreSQL, JWT, xUnit).
+  Read BEFORE starting any work on the FlowBox project. Describes the project map, layer/naming rules, the domain
+  model (Order -> Shipment, status pipeline), auth and role/ownership rules, test/migration/Docker/CI commands and
+  known gaps. Use it when returning to the project after a long break, when asked "what has been done / how does it
+  work", when adding an endpoint, service, repository, entity, migration, test or authorization rule, or when
+  debugging a test/CI/Docker failure. Orients a fresh session on the FlowBox logistics API (.NET 9, PostgreSQL, JWT, xUnit).
 ---
 
-# FlowBox — oryantasyon
+# FlowBox — orientation
 
-FlowBox, gerçek bir kargo/lojistik backend'ini simüle eden bir **öğrenme projesidir**. Amaç CRUD değil;
-event-driven mimari, cache, güvenlik, ölçekleme gibi konuları **gerçek bir problem ortaya çıktığında**
-eklemek. Çalışma biçimi: "bugün ne yapıyoruz" diyerek küçük, doğrulanabilir adımlar. Büyük faz planı
-çıkarılmaz; teknoloji ancak çözdüğü problem görüldüğünde eklenir (örn. yük testi Redis'e ihtiyaç
-göstermedi, o yüzden Redis yok).
+FlowBox is a **learning project** that simulates a real cargo/logistics backend. The goal is not CRUD; it is to add
+topics such as event-driven architecture, caching, security and scaling **when a real problem shows up**. Working
+style: "what are we doing today" in small, verifiable steps. No big phase plans; a technology is added only when the
+problem it solves has been observed (e.g. the load test showed no need for Redis, so there is no Redis).
 
-## Teknolojiler
+## Technologies
 
 .NET 9, ASP.NET Core **Minimal API**, EF Core 9 + Npgsql (**PostgreSQL 16**), FluentValidation, JWT Bearer
-(`PasswordHasher<T>` ile şifre hash'i), OpenAPI + Scalar (`/scalar/v1`), Docker + docker-compose,
-xUnit + FluentAssertions, Testcontainers, GitHub Actions, k6 (yük testi).
+(passwords hashed with `PasswordHasher<T>`), OpenAPI + Scalar (`/scalar/v1`), Docker + docker-compose,
+xUnit + FluentAssertions, Testcontainers, GitHub Actions, k6 (load testing).
 
-## Klasör haritası (`src/FlowBox.Api/`)
+## Folder map (`src/FlowBox.Api/`)
 
-Katman klasörleri düz durur, içlerinde özellik (feature) klasörleri vardır: `Shipment`, `Courier`, `Order`, `Auth`.
-İsimlendirme iş yerindeki **bubilet-panel** reposundan alınmıştır.
+Layer folders are flat; inside them are feature folders: `Shipment`, `Courier`, `Order`, `Auth`.
+Naming is taken from the **bubilet-panel** repo at work.
 
-| Klasör | Ne var |
+| Folder | Contents |
 |---|---|
-| `Endpoints/<Feature>/` | `IEndpoint` sınıfları: sadece HTTP (isteği al, Service'i çağır, sonucu HTTP cevabına çevir) |
-| `Service/<Feature>/` | İş kuralları. `IService` boş marker arayüzdür; servisler **somut sınıf** olarak inject edilir |
-| `Repositories/<Feature>/` | `IxxxRepository` + `EfXxxRepository` (bubilet-panel'de yok; DB'siz unit test için bilerek eklendi) |
-| `Data/Ef/` | `FlowBoxDbContext` + `Models/` (entity'ler) |
-| `Domain/Shipment/` | Saf iş kuralı: `ShipmentStatusTransitions` |
-| `Validators/<Feature>/` | FluentValidation kuralları |
-| `Extensions/` | `ClaimsPrincipalExtensions.ToCaller()` (JWT'den `Caller(UserId, Role)`) |
-| `Enums/` | `ShipmentStatus`, `OrderStatus`, `UserRole` (modül altında değil, düz) |
+| `Endpoints/<Feature>/` | `IEndpoint` classes: HTTP only (take the request, call the Service, map the result to an HTTP response) |
+| `Service/<Feature>/` | Business rules. `IService` is an empty marker interface; services are injected as **concrete classes** |
+| `Repositories/<Feature>/` | `IxxxRepository` + `EfXxxRepository` (not in bubilet-panel; added deliberately so unit tests run without a DB) |
+| `Data/Ef/` | `FlowBoxDbContext` + `Models/` (entities) |
+| `Domain/Shipment/` | Pure business rule: `ShipmentStatusTransitions` |
+| `Validators/<Feature>/` | FluentValidation rules |
+| `Extensions/` | `ClaimsPrincipalExtensions.ToCaller()` (builds `Caller(UserId, Role)` from the JWT) |
+| `Enums/` | `ShipmentStatus`, `OrderStatus`, `UserRole` (flat, not under a module) |
 | `Registry/` | `ServiceCollectionExtensions` (DI) + `EndpointRouteBuilderExtensions` (`MapEndpoints`) |
-| `Migrations/` | EF migration'ları |
+| `Migrations/` | EF migrations |
 
-İstek akışı: `Endpoint (static Handle)` → `Service` → `IRepository` → `EF Core`. Handler bağımlılıkları
-**handler parametresi** olarak alır (constructor değil). Endpoint'ler `Program.cs`'te reflection ile bulunur
-(`IEndpoint`, parametresiz constructor şart); servisler `AddService()` ile otomatik kaydolur (`IService`).
-**Repository'ler otomatik kaydolmaz**: `AddRepositories()` içine elle eklenir.
+Request flow: `Endpoint (static Handle)` → `Service` → `IRepository` → `EF Core`. Handlers take their dependencies as
+**handler parameters** (not constructors). Endpoints are discovered by reflection in `Program.cs` (`IEndpoint`,
+parameterless constructor required); services register themselves through `AddService()` (`IService`).
+**Repositories are not registered automatically**: add them by hand in `AddRepositories()`.
 
-Servis metotları HTTP bilmez; sonucu discriminated record olarak döner (`UpdateShipmentStatusResult.Success /
-ShipmentNotFound / InvalidTransition` gibi), endpoint bunu `switch` ile HTTP status'una çevirir.
+Service methods know nothing about HTTP; they return discriminated records (`UpdateShipmentStatusResult.Success /
+ShipmentNotFound / InvalidTransition`, etc.) and the endpoint maps them to HTTP status codes with a `switch`.
 
 ## Domain
 
-- **Order**: müşterinin talebi, `CustomerId` (→ `User`) taşır. Bugün oluşturulduğu an senkron olarak bir
-  Shipment'e dönüşür (1:1). İleride ödeme onayı gibi adımlar araya girince bu ayrım işe yarayacak.
-- **Shipment**: asıl takip birimi (`TrackingNumber`, `OrderId`). **ShipmentTrackingEvent**: her statü
-  değişikliğinde bir kayıt (silinmez/güncellenmez). **ShipmentAssignment**: kurye atama geçmişi.
-- **User** (Email unique, PasswordHash, Role) ve **Courier** (Name, Phone) birbirine bağlıdır: `Courier.UserId`
-  zorunlu ve benzersiz. Courier rolünde hesap açarken profil (ad, telefon) de verilir; `AuthService.RegisterAsync`
-  ikisini tek işlemde oluşturur. Profilsiz Courier hesabı oluşamaz (`RegisterResult.CourierProfileRequired`).
-- **Statü akışı**: `Created → PickedUp → ArrivedAtSortingCenter → Sorted → InTransit →
-  ArrivedAtDistributionCenter → OutForDelivery → Delivered`. `Failed`, terminal olmayan her durumdan
-  erişilebilir. Adım atlanamaz; `Delivered`/`Failed` sonrası değişiklik yapılamaz.
+- **Order**: the customer's request, carries `CustomerId` (-> `User`). Today it turns into a Shipment synchronously
+  when created (1:1). The split will pay off once steps such as payment confirmation are inserted between them.
+- **Shipment**: the real tracking unit (`TrackingNumber`, `OrderId`). **ShipmentTrackingEvent**: one record per status
+  change (never deleted or updated). **ShipmentAssignment**: courier assignment history.
+- **User** (unique Email, PasswordHash, Role) and **Courier** (Name, Phone) are linked: `Courier.UserId` is required
+  and unique. When a Courier account is created, the profile (name, phone) is supplied too; `AuthService.RegisterAsync`
+  creates both in one operation. A Courier account without a profile cannot exist
+  (`RegisterResult.CourierProfileRequired`).
+- **Status pipeline**: `Created → PickedUp → ArrivedAtSortingCenter → Sorted → InTransit →
+  ArrivedAtDistributionCenter → OutForDelivery → Delivered`. `Failed` is reachable from every non-terminal state.
+  Steps cannot be skipped; nothing can change after `Delivered`/`Failed`.
 
-## API ve yetkiler
+## API and permissions
 
-| Endpoint | Kim |
+| Endpoint | Who |
 |---|---|
-| `POST /api/auth/register` | Herkes (her zaman **Customer** oluşturur; gövdedeki `role` yok sayılır) |
-| `POST /api/auth/login` | Herkes |
-| `POST /api/admin/users` | Admin (Customer/Courier/Admin hesabı oluşturur; Courier için `name` ve `phone` zorunlu, yanıtta `courierId` döner) |
+| `POST /api/auth/register` | Everyone (always creates a **Customer**; a `role` in the body is ignored) |
+| `POST /api/auth/login` | Everyone |
+| `POST /api/admin/users` | Admin (creates a Customer/Courier/Admin account; Courier requires `name` and `phone`, the response returns `courierId`) |
 | `POST /api/orders`, `GET /api/orders/mine` | Customer, Admin |
-| `GET /api/shipments/{tn}`, `/tracking`, `/history` | Giriş yapmış herkes + **sahiplik**: Admin hepsini görür; Customer sadece kendi siparişinin kargosunu; Courier sadece kendisine **aktif atanmış** kargoyu. Diğerleri **404** (403 değil, varlığı sızdırmamak için) |
-| `PATCH /api/shipments/{tn}/status` | Courier (aynı sahiplik kuralı), Admin |
-| `GET /api/couriers/me/shipments` | Courier (kendisine aktif atanmış kargolar, sayfalı) |
+| `GET /api/shipments/{tn}`, `/tracking`, `/history` | Any authenticated user + **ownership**: Admin sees all; Customer only the shipment of their own order; Courier only a shipment **actively assigned** to them. Everyone else gets **404** (not 403, so existence is not leaked) |
+| `PATCH /api/shipments/{tn}/status` | Courier (same ownership rule), Admin |
+| `GET /api/couriers/me/shipments` | Courier (shipments actively assigned to them, paged) |
 | `PATCH /api/shipments/{tn}/assign`, `GET /api/shipments` | Admin |
 
-Yetki kuralı endpoint'te `.RequireAuthorization(policy => policy.RequireRole(...))` ile verilir; sahiplik
-kuralı Service'te (`ShipmentService.CanAccessAsync`). Kargo başka kuryeye atanınca önceki kurye erişimini kaybeder.
-Auth **opt-in**: yeni endpoint'e `RequireAuthorization` eklemeyi unutursan anonim olur.
+Role rules are set on the endpoint with `.RequireAuthorization(policy => policy.RequireRole(...))`; ownership rules
+live in the Service (`ShipmentService.CanAccessAsync`). When a shipment is reassigned to another courier, the previous
+courier loses access. Auth is **opt-in**: if you forget `RequireAuthorization` on a new endpoint, it is anonymous.
 
 ## Auth
 
-- JWT (HS256), rol claim'i `ClaimTypes.Role`. `Jwt:Issuer/Audience/ExpiryMinutes` `appsettings.json`'da;
-  **`Jwt:Secret` boşsa uygulama açılışta hata verip durur**. Dev secret `appsettings.Development.json`'da,
-  production'da `Jwt__Secret` ortam değişkeninden gelmeli.
-- **İlk Admin**: Admin'i sadece Admin oluşturabildiği için `AdminSeed:Email/Password` ayarı açılışta (idempotent)
-  bir Admin yaratır; dev değeri `appsettings.Development.json`'da, production'da `AdminSeed__Email` /
-  `AdminSeed__Password` ortam değişkenleri. Mevcut bir kullanıcının rolünü değiştirmez.
-- Yanlış şifre ile bilinmeyen email aynı cevabı (401) verir, bilerek.
+- JWT (HS256), role claim is `ClaimTypes.Role`. `Jwt:Issuer/Audience/ExpiryMinutes` are in `appsettings.json`;
+  **if `Jwt:Secret` is empty the app fails at startup**. The dev secret is in `appsettings.Development.json`; in
+  production it must come from the `Jwt__Secret` environment variable.
+- **First Admin**: since only an Admin can create an Admin, the `AdminSeed:Email/Password` setting creates one at
+  startup (idempotent). Dev values are in `appsettings.Development.json`; in production use the `AdminSeed__Email` /
+  `AdminSeed__Password` environment variables. It never changes the role of an existing user.
+- A wrong password and an unknown email return the same response (401), on purpose.
 
-## Tuzaklar (yeni gelenleri yakalayan kurallar)
+## Pitfalls (rules that catch newcomers)
 
-1. **Namespace–tip çakışması.** Feature klasör adları entity adlarıyla aynı (`Shipment`, `Courier`, `Order`), bu
-   yüzden `FlowBox.Api.Service.Order` içinde çıplak `Order`/`Shipment`/`Courier` yazmak `CS0118 'X' is a namespace
-   but is used like a type` verir. Entity'yi **tam nitelikli** yaz: `Data.Ef.Models.Shipment`.
-   (`User` çakışmaz, klasör adı `Auth`.)
-2. **Migration dosyasını elle silme.** `dotnet ef migrations add` snapshot'ı da ilerletir; dosyayı elle silersen
-   snapshot ileride kalır ve sonraki migration eksik çıkar. Doğrusu `dotnet ef migrations remove` (DB'ye bağlanır,
-   Docker açık olmalı). Namespace taşımaları boş migration üretir, zararsızdır.
-3. **Zorunlu FK/kolon eklemek mevcut yerel veriyi bozar** (örn. `Orders.CustomerId`): eski satırlar için migration
-   uygulanamaz, API açılmaz. Yerel DB'yi sıfırla: `docker compose down -v`.
-4. `FluentValidation` doğrulaması `AddValidatorsFromAssemblyContaining<Program>()` ile otomatik taranır; validator
-   sınıfı eklemek yeterli. Endpoint `IValidator<TRequest>`'i parametre olarak alır.
-5. **Yeni koda yorum satırı eklenmez** (proje sahibi istemedi); eski dosyalardaki yorumlar kalabilir.
-6. Yol karışıklığı: `FlowBox.sln` **repo kökünde**, `docker-compose.yml` `src/` içinde. Terminal `src/` içindeyken
-   `src/...` ile başlayan yol yazma.
+1. **Namespace–type collision.** Feature folder names equal entity names (`Shipment`, `Courier`, `Order`), so writing a
+   bare `Order`/`Shipment`/`Courier` inside `FlowBox.Api.Service.Order` gives `CS0118 'X' is a namespace but is used
+   like a type`. Write the entity **fully qualified**: `Data.Ef.Models.Shipment`. (`User` does not collide; its folder
+   is `Auth`.)
+2. **Never delete a migration file by hand.** `dotnet ef migrations add` also advances the snapshot; deleting the file
+   leaves the snapshot ahead and the next migration comes out incomplete. Use `dotnet ef migrations remove` (it
+   connects to the DB, so Docker must be running). Namespace moves produce an empty migration, which is harmless.
+3. **Adding a required FK/column breaks existing local data** (e.g. `Orders.CustomerId`): the migration cannot be
+   applied to old rows and the API will not start. Reset the local DB: `docker compose down -v`.
+4. `FluentValidation` validators are scanned automatically with `AddValidatorsFromAssemblyContaining<Program>()`;
+   adding a validator class is enough. The endpoint takes `IValidator<TRequest>` as a parameter.
+5. **No comments in new code** (the project owner does not want them); comments in old files may stay.
+6. Path confusion: `FlowBox.sln` is **at the repo root**, `docker-compose.yml` is inside `src/`. Do not write paths
+   starting with `src/...` while the terminal is already inside `src/`.
 
-## Test
+## Tests
 
-- `FlowBox.UnitTests` (**Docker gerekmez**, saniyeler): `Domain/` (statü kuralları), `Service/<Feature>/`
-  (sahte repository'lerle iş kuralları), `Validators/`, `Fakes/` (`Fake*Repository`).
-- `FlowBox.IntegrationTests` (**Docker gerekir**): `WebApplicationFactory` + Testcontainers ile gerçek Postgres,
-  her sınıf kendi container'ında, migration'lar sıfırdan uygulanır. `TestAuthHelper.AuthenticateAsAsync(rol)` rol
-  için gerçek akışla token alır (Customer: register; Courier/Admin: seed Admin'in `/api/admin/users`'ı).
-  `CreateCourierAsync` kurye hesabı açıp `courierId` döner, `AssignShipmentAsAdminAsync` kargoyu atar; kuryenin
-  statü güncelleyebilmesi için önce kargonun ona atanması gerekir. Factory `AdminSeed`'i test değerleriyle ezer.
-- Son durum: **79 unit + 33 integration**, hepsi yeşil. Yeni özellik = hem unit hem integration test.
+- `FlowBox.UnitTests` (**no Docker needed**, seconds): `Domain/` (status rules), `Service/<Feature>/` (business rules
+  with fake repositories), `Validators/`, `Fakes/` (`Fake*Repository`).
+- `FlowBox.IntegrationTests` (**Docker required**): `WebApplicationFactory` + Testcontainers with a real Postgres, each
+  class in its own container, migrations applied from scratch. `TestAuthHelper.AuthenticateAsAsync(role)` obtains a
+  token for a role through the real flow (Customer: register; Courier/Admin: the seed Admin's `/api/admin/users`).
+  `CreateCourierAsync` creates a courier account and returns `courierId`; `AssignShipmentAsAdminAsync` assigns a
+  shipment (a courier can only update status after the shipment is assigned to them). The factory overrides
+  `AdminSeed` with test values.
+- Last known state: **79 unit + 33 integration**, all green. New feature = both unit and integration tests.
 
 ```bash
 dotnet test src/FlowBox.UnitTests/FlowBox.UnitTests.csproj
 dotnet test src/FlowBox.IntegrationTests/FlowBox.IntegrationTests.csproj
 ```
 
-## Çalıştırma
+## Running
 
 ```bash
 cd src && docker compose up --build -d     # API: http://localhost:8080  (Scalar: /scalar/v1)
-docker compose down -v                      # DB'yi sıfırlar (yerel veri silinir)
+docker compose down -v                      # resets the DB (local data is deleted)
 ```
 
-- Compose'ta Postgres için healthcheck var, API `condition: service_healthy` ile onu bekler.
-- Compose içinde DB host'u `db`; Rider/DataGrip gibi **dışarıdan** bağlanırken `localhost:5432`
-  (kullanıcı/şifre/DB adı `docker-compose.yml`'de).
-- Scalar'da JWT için "Authorize" kutusu yok (OpenAPI'ye security scheme eklenmedi); `Authorization: Bearer <token>`
-  header'ını curl/Postman ile elle ver.
+- Compose has a healthcheck for Postgres and the API waits for it with `condition: service_healthy`.
+- Inside compose the DB host is `db`; from **outside** (Rider/DataGrip) connect to `localhost:5432` (user/password/DB
+  name are in `docker-compose.yml`).
+- Scalar has no JWT "Authorize" box (no security scheme was added to OpenAPI); send the
+  `Authorization: Bearer <token>` header by hand with curl/Postman.
 
-## CI ve yük testi
+## CI and load testing
 
-- `.github/workflows/ci.yml`: `main`'e push ve PR'da restore → build → unit → integration (runner'ın Docker'ı ile).
-  Her özellik ayrı branch + PR; CI yeşil olunca merge.
-- `load-tests/tracking-lookup.js` (k6): kendi Customer'ını kaydedip `GET /api/shipments/{tn}`'e 20→100→300 VU ile yük
-  bindirir. Taban çizgisi: p95 ≈ 8–14 ms, %0 hata, ~125 istek/sn. Çalıştırma: `k6 run load-tests/tracking-lookup.js`.
+- `.github/workflows/ci.yml`: on push and PR to `main`, runs restore → build → unit → integration (using the runner's
+  Docker). Every feature has its own branch + PR; merge once CI is green.
+- `load-tests/tracking-lookup.js` (k6): registers its own Customer and loads `GET /api/shipments/{tn}` at 20→100→300
+  VUs. Baseline: p95 ≈ 8–14 ms, 0% errors, ~125 req/s. Run: `k6 run load-tests/tracking-lookup.js`.
 
-## Bilinen eksikler / sıradaki işler
+## Known gaps / next work
 
-1. **`TrackingNumber` rastgele 6 haneli, unique kısıt ve index yok**: çakışma mümkün (yanlış kargo dönebilir), tablo
-   büyüyünce sorgu yavaşlar.
-2. Admin'in oluşturduğu sipariş Admin hesabına yazılır.
-3. Refresh token, rate limiting, hesap kilitleme yok. JWT 60 dk.
-4. Deploy yok (CI sadece doğrular).
-5. Container'da DataProtection anahtarları kalıcı değil (uyarı verir; şu an kullanılan bir özellik yok).
-6. Vizyondan yapılmayanlar: Kafka/event-driven, Redis, Elasticsearch, observability, mikroservislere bölme,
-   mobil uygulamalar, rota optimizasyonu, AI tahminleme, harici servisler (SMS, harita, ödeme).
+1. **`TrackingNumber` is a random 6-digit number with no unique constraint or index**: collisions are possible (the
+   wrong shipment could be returned) and lookups slow down as the table grows.
+2. An order created by an Admin is stored under the Admin account.
+3. No refresh token, rate limiting or account lockout. JWT lifetime is 60 min.
+4. No deployment (CI only verifies).
+5. DataProtection keys are not persisted in the container (it logs a warning; no feature uses them today).
+6. Vision items not done: Kafka/event-driven, Redis, Elasticsearch, observability, splitting into microservices,
+   mobile apps, route optimization, AI prediction, external services (SMS, maps, payment).
 
-## Yeni özellik eklerken kontrol listesi
+## Checklist for a new feature
 
-1. Branch aç (`feature/...`). 2. Entity/enum → `Data/Ef/Models`, `Enums`. 3. Repository arayüzü + EF implementasyonu →
-`AddRepositories()`'a kaydet. 4. Service (somut sınıf, `: IService`) + sonuç record'ları. 5. Endpoint (`IEndpoint`,
-`RequireAuthorization`) + Validator. 6. Migration (`dotnet ef migrations add`, içeriğine bak). 7. Unit + integration
-test. 8. `dotnet test` (ikisi de), commit, PR, CI yeşil, merge.
+1. Open a branch (`feature/...`). 2. Entity/enum → `Data/Ef/Models`, `Enums`. 3. Repository interface + EF
+implementation → register in `AddRepositories()`. 4. Service (concrete class, `: IService`) + result records.
+5. Endpoint (`IEndpoint`, `RequireAuthorization`) + Validator. 6. Migration (`dotnet ef migrations add`, read the
+result). 7. Unit + integration tests. 8. `dotnet test` (both), update `docs/HANDOFF.md`, commit, PR, CI green, merge.

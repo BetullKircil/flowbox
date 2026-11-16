@@ -1,65 +1,74 @@
 # FlowBox
 
-Kargo/lojistik backend'i (.NET 9, Minimal API, PostgreSQL, JWT). Öğrenme projesi. Projeyi tanımak için **önce**
-`.claude/skills/flowbox-orientation/SKILL.md` dosyasını oku (harita, domain, yetkiler, tuzaklar, eksikler).
+Cargo/logistics backend (.NET 9, Minimal API, PostgreSQL, JWT). A learning project. To get oriented, **first** read
+`.claude/skills/flowbox-orientation/SKILL.md` (map, domain, permissions, pitfalls, known gaps), then `docs/HANDOFF.md`
+(current state, what was done last, what comes next).
 
-## Çalışma biçimi
+## Working style
 
-- Kullanıcıyla **Türkçe** konuş. Kod ve identifier'lar İngilizce; kullanıcıya dönen doğrulama/hata mesajları Türkçe.
-- Küçük, doğrulanabilir adımlarla ilerle. Büyük faz planı çıkarma. Bir teknolojiyi (Kafka, Redis vb.) ancak çözdüğü
-  problem ortaya çıkınca öner.
-- Gerçek bir tasarım kararı kullanıcıya aitse (örn. 403 mü 404 mü) kısa bir öneriyle birlikte sor; geri kalanını kendin karar ver.
-- **Yeni koda yorum satırı ekleme.**
-- Kullanıcı commit atar. Sorulmadan `git commit` / `git push` yapma. Her özellik ayrı branch + PR ile `main`'e gider;
-  `main`'e doğrudan değişiklik yapma.
-- Şifre, secret ya da token değerlerini yanıtlarda yazma. Dev değerleri `appsettings.Development.json`'da durur.
+- Talk to the user in **Turkish**. Code and identifiers are in English; validation/error messages returned to API
+  clients are in Turkish.
+- Work in small, verifiable steps. Do not produce big phase plans. Suggest a technology (Kafka, Redis, etc.) only once
+  the problem it solves has actually shown up.
+- If a decision is genuinely the user's to make (e.g. 403 vs 404), ask with a short recommendation; decide the rest yourself.
+- **Do not add comments to new code.**
+- The user makes the commits. Never run `git commit` / `git push` unless asked. Every feature goes to `main` through its
+  own branch + PR; never change `main` directly.
+- Never write passwords, secrets or tokens in replies. Dev values live in `appsettings.Development.json`.
+- Documentation files (`CLAUDE.md`, skills, `docs/`) are written in English.
 
-## Kod kuralları
+## Code rules
 
-- Katman akışı: `Endpoint` (sadece HTTP) → `Service` (iş kuralı, `IService`, somut sınıf) → `IRepository` → EF Core.
-  İsimlendirme bubilet-panel reposuna benzer; yeni dosyaları mevcut örneklere bakarak aynı desende yaz.
-- Yeni repository'yi `AddRepositories()`'a elle kaydet (servisler reflection ile otomatik kaydolur).
-- Entity tiplerini feature namespace'i içinde tam nitelikli yaz (`Data.Ef.Models.Shipment`), yoksa `CS0118` alırsın.
-- Her yeni endpoint'e bilinçli bir yetki ver (`RequireAuthorization`). Auth opt-in: unutursan endpoint anonim olur.
-- Migration: `dotnet ef migrations add` ile üret, içeriğine bak. Dosyayı elle silme, `dotnet ef migrations remove` kullan.
-  Zorunlu FK/kolon eklemek yerel veriyi bozar, kullanıcıya `docker compose down -v` gerektiğini söyle.
+- Layer flow: `Endpoint` (HTTP only) → `Service` (business rules, `IService`, concrete class) → `IRepository` → EF Core.
+  Naming follows the bubilet-panel repo; write new files in the same pattern as the existing examples.
+- Register every new repository by hand in `AddRepositories()` (services are registered automatically via reflection).
+- Write entity types fully qualified inside feature namespaces (`Data.Ef.Models.Shipment`), otherwise you get `CS0118`.
+- Give every new endpoint a deliberate authorization rule (`RequireAuthorization`). Auth is opt-in: if you forget, the
+  endpoint is anonymous.
+- Migrations: generate with `dotnet ef migrations add` and read the result. Never delete a migration file by hand; use
+  `dotnet ef migrations remove`. Adding a required FK/column breaks local data, so tell the user that
+  `docker compose down -v` is needed.
 
-## Test ve doğrulama
+## Tests and verification
 
-- Yeni özellik = **unit + integration test**. Bitirmeden ikisini de çalıştır, sonucu dürüstçe raporla.
-- Integration testler Docker ister. `FlowBox.sln` repo kökünde, `docker-compose.yml` `src/` içinde.
+- New feature = **unit + integration tests**. Run both before finishing and report the result honestly.
+- Integration tests need Docker. `FlowBox.sln` is at the repo root, `docker-compose.yml` is inside `src/`.
 
 ```bash
 dotnet test src/FlowBox.UnitTests/FlowBox.UnitTests.csproj
 dotnet test src/FlowBox.IntegrationTests/FlowBox.IntegrationTests.csproj
 ```
 
-## İş akışları
+## Workflows
 
-**Yeni özellik**
-1. Kullanıcı branch'i açtığını söyleyince başla. `main` üzerindeysen önce uyar.
-2. Skill'i ve ilgili mevcut dosyaları oku, aynı desende yaz.
-3. Sıra: entity/enum → repository (+ DI kaydı) → service → endpoint + validator → migration → testler.
-4. `dotnet build` ve iki test setini çalıştır, hepsi yeşil olmadan "bitti" deme.
-5. Özet ver: ne değişti, bilerek neyi açık bıraktın, kullanıcının yapacağı adımlar (varsa DB sıfırlama) ve commit komutları.
+**New feature**
+1. Start once the user says the branch is open. If you are on `main`, warn first.
+2. Read the skill and the relevant existing files, then write in the same pattern.
+3. Order: entity/enum → repository (+ DI registration) → service → endpoint + validator → migration → tests.
+4. Run `dotnet build` and both test suites; do not say "done" until everything is green.
+5. Give a summary: what changed, what you deliberately left open, the steps the user must take (including a DB reset if
+   needed) and the commit commands.
 
-**Hata ayıklama**
-1. Önce gerçek nedeni bul: log, yığın izi, `docker compose logs api`. Tahminle kod değiştirme.
-2. Ortam sorunu (Docker kapalı, yanlış dizin, eski image) ile kod sorununu ayır. Ortam sorununda kullanıcıya ne yapacağını söyle.
-3. Düzelttikten sonra aynı yolla doğrula ve neyin bozuk olduğunu açıkça yaz.
+**Debugging**
+1. Find the real cause first: logs, stack trace, `docker compose logs api`. Do not change code on a guess.
+2. Separate environment problems (Docker down, wrong directory, stale image) from code problems. For environment
+   problems, tell the user what to do.
+3. After fixing, verify the same way and state clearly what was broken.
 
-**Şema değişikliği**
-1. Entity'yi değiştir, `dotnet ef migrations add <Ad>` çalıştır.
-2. Üretilen migration'ı oku. `defaultValue: Guid.Empty` gibi bir şey ya da mevcut satırlarda FK ihlali riski varsa kullanıcıya söyle.
-3. Yerel DB'de veri olup olmadığına bak, gerekiyorsa `docker compose down -v` iste (silmeden önce ne olduğunu kontrol et).
-4. Integration testler migration'ları sıfırdan uyguladığı için ikinci doğrulama olur.
+**Schema change**
+1. Change the entity and run `dotnet ef migrations add <Name>`.
+2. Read the generated migration. If it contains something like `defaultValue: Guid.Empty`, or existing rows could
+   violate a FK, tell the user.
+3. Check whether the local DB has data; if needed, ask for `docker compose down -v` (look at what is there before wiping).
+4. Integration tests apply migrations from scratch, so they are a second verification.
 
-**Yük testi**
-- `k6 run load-tests/tracking-lookup.js` (API `localhost:8080`'de ayakta olmalı). Sonucu p95 ve hata oranıyla özetle,
-  sistem kırılmadıysa yeni teknoloji önerme.
+**Load test**
+- `k6 run load-tests/tracking-lookup.js` (the API must be up on `localhost:8080`). Summarize with p95 and error rate;
+  if the system did not break, do not propose new technology.
 
-**Teslim**
-1. Kullanıcıya şu komutları ver (sen çalıştırma): `git add -A`, kısa İngilizce bir mesajla `git commit -m "add ..."`,
-   `git push -u origin <branch>`.
-2. Kullanıcı PR açar, CI yeşil olunca merge eder.
-3. Merge sonrası: `git checkout main`, `git pull`, yeni branch.
+**Delivery**
+1. Update `docs/HANDOFF.md` (where we are, what was just done, what is next, open decisions) as part of the change.
+2. Give the user these commands (do not run them yourself): `git add -A`, `git commit -m "add ..."` with a short
+   English message, `git push -u origin <branch>`.
+3. The user opens the PR and merges once CI is green.
+4. After the merge: `git checkout main`, `git pull`, new branch.
