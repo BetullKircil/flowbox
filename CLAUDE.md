@@ -1,8 +1,9 @@
 # FlowBox
 
 Cargo/logistics backend (.NET 9, Minimal API, PostgreSQL, JWT). A learning project. To get oriented, **first** read
-`.claude/skills/flowbox-orientation/SKILL.md` (map, domain, permissions, pitfalls, known gaps), then `docs/HANDOFF.md`
-(current state, what was done last, what comes next).
+`docs/HANDOFF.md` (current state, what was done last, what comes next, known gaps), then load
+`.claude/skills/flowbox-orientation/SKILL.md`, which routes to the topic skills (architecture, domain, auth, testing,
+operations). Load only the topic skills the task needs.
 
 ## Working style
 
@@ -16,6 +17,9 @@ Cargo/logistics backend (.NET 9, Minimal API, PostgreSQL, JWT). A learning proje
   own branch + PR; never change `main` directly.
 - Never write passwords, secrets or tokens in replies. Dev values live in `appsettings.Development.json`.
 - Documentation files (`CLAUDE.md`, skills, `docs/`) are written in English.
+- Skills: one topic per skill (`.claude/skills/flowbox-<topic>/SKILL.md`), under ~100 lines, with a trigger-word
+  `description`; add each new skill to the routing table in `flowbox-orientation`. Durable facts go in skills; anything
+  that changes between sessions (state, next steps, known gaps, test counts) goes in `docs/HANDOFF.md`.
 
 ## Code rules
 

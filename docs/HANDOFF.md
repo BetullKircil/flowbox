@@ -1,43 +1,52 @@
 # FlowBox — Handoff
 
 Volatile state only: where the project stands right now and what to do next. Durable facts (architecture, domain,
-permissions, pitfalls, gaps) live in [`.claude/skills/flowbox-orientation/SKILL.md`](../.claude/skills/flowbox-orientation/SKILL.md)
-and the [README](../README.md); they are not repeated here.
+permissions, pitfalls) live in the topic skills under [`.claude/skills/`](../.claude/skills/) (start at
+`flowbox-orientation`) and in the [README](../README.md); they are not repeated here.
 
-Last updated: 2026-11-16, after PR #6 (courier ownership).
+Last updated: 2026-11-16, on branch `docs/split-skills`.
 
 ## Where we are now
 
-- `main` is at the merge of PR #6 (`135b6f8`). Everything below is merged and green.
-- Merged so far: #1 CI, #2 k6 load test, #3 JWT auth (+ Postgres healthcheck), #4 restricted registration + Admin-only
-  user creation, #5 customer ownership of orders/shipments, #6 courier ownership (Courier linked to User, only the
-  actively assigned courier can read/update a shipment).
+- `main` includes PR #7 (handoff document, English `CLAUDE.md` and skill). Features merged so far: #1 CI, #2 k6 load
+  test, #3 JWT auth (+ Postgres healthcheck), #4 restricted registration + Admin-only user creation, #5 customer
+  ownership, #6 courier ownership.
 - Tests: **79 unit + 33 integration**, all passing (verified 2026-11-16).
-- Working branch for this document: `docs/handoff`.
+- In progress: `docs/split-skills` (this change) splits the single skill into topic skills. A separate branch,
+  `feature/tracking-number-unique`, is open but has no changes yet.
 
 ## Last done
 
-- Courier ownership: `Courier.UserId` (required, unique); Admin creates a Courier account and profile in one request;
-  non-assigned couriers get 404; `GET /api/couriers/me/shipments`.
-- Project tooling: `CLAUDE.md` (rules), the `flowbox-orientation` skill (map/domain/pitfalls), README Docker section.
-- Docs (this branch): `CLAUDE.md`, the skill and this file translated/written in English.
+- Split `flowbox-orientation` into a router plus `flowbox-architecture`, `flowbox-domain`, `flowbox-auth`,
+  `flowbox-testing`, `flowbox-operations`. Size before: one skill of 161 lines / 11,117 characters loaded in full for
+  every task. Known gaps moved from the skill to this file.
+- Added a skills rule to `CLAUDE.md` (one topic per skill, volatile info goes here).
 
 ## Next
 
-1. **TrackingNumber uniqueness** (highest priority, separate `feature/...` branch). Today it is generated in
-   `OrderService` as `TR{Random.Shared.Next(100000, 999999)}` with no unique index, so collisions can return the wrong
-   shipment and lookups degrade as the table grows. Needs a unique index + collision-resistant generation (retry or a
-   longer random/sequence-based value) + tests. The migration will fail if the dev DB already holds duplicates, so
-   expect `docker compose down -v`.
-2. Re-run `k6 run load-tests/tracking-lookup.js` after the index lands and compare with the baseline in the skill.
-3. Learning track for the repo tooling (not started): a read-only `code-reviewer` subagent
-   (`.claude/agents/code-reviewer.md`), splitting the skill into topic skills with a router table, and `docs/decisions/`
-   ADRs (404 vs 403, why repository interfaces are kept).
+1. **TrackingNumber uniqueness** (highest priority, branch `feature/tracking-number-unique`). It is generated in
+   `OrderService` as `TR{Random.Shared.Next(100000, 999999)}` with no unique index. Needs a unique index +
+   collision-resistant generation (retry or a longer value) + unit and integration tests. The migration fails if the dev
+   DB already holds duplicates, so expect `docker compose down -v`. Re-run the k6 test afterwards and compare with the
+   baseline in `flowbox-testing`.
+2. Learning track for repo tooling: a read-only `code-reviewer` subagent (`.claude/agents/code-reviewer.md`) and
+   `docs/decisions/` ADRs (404 vs 403, why repository interfaces are kept).
+3. Token experiments, one tool at a time so effects stay attributable: baseline (no plugins) -> Superpowers -> Ponytail
+   or Caveman. Measure each with `/context` or the usage tool.
+
+## Known gaps
+
+- Admin-placed orders are stored under the Admin account.
+- No refresh token, rate limiting or account lockout; JWT lifetime is 60 minutes.
+- No deployment (CI only verifies).
+- DataProtection keys are not persisted in the container (warning only; nothing uses them yet).
+- Vision items not started: Kafka/event-driven, Redis, Elasticsearch, observability, microservices, mobile apps,
+  route optimization, AI prediction, external services (SMS, maps, payment).
 
 ## Open decisions / questions
 
-- Admin-placed orders are owned by the Admin account. Should an Admin be able to create an order on behalf of a customer?
-- How should tracking numbers look once uniqueness is enforced (keep the `TR` + digits format or change it)?
+- Should an Admin be able to place an order on behalf of a customer?
+- Tracking number format once uniqueness is enforced: keep `TR` + digits or change it?
 
 ## Watch out for
 
