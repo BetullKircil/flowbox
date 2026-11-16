@@ -36,7 +36,13 @@ namespace FlowBox.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
 
                     b.ToTable("Couriers");
                 });
@@ -195,6 +201,17 @@ namespace FlowBox.Api.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("FlowBox.Api.Data.Ef.Models.Courier", b =>
+                {
+                    b.HasOne("FlowBox.Api.Data.Ef.Models.User", "User")
+                        .WithOne("Courier")
+                        .HasForeignKey("FlowBox.Api.Data.Ef.Models.Courier", "UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("FlowBox.Api.Data.Ef.Models.Order", b =>
                 {
                     b.HasOne("FlowBox.Api.Data.Ef.Models.User", "Customer")
@@ -262,6 +279,11 @@ namespace FlowBox.Api.Migrations
                     b.Navigation("Assignments");
 
                     b.Navigation("TrackingEvents");
+                });
+
+            modelBuilder.Entity("FlowBox.Api.Data.Ef.Models.User", b =>
+                {
+                    b.Navigation("Courier");
                 });
 #pragma warning restore 612, 618
         }

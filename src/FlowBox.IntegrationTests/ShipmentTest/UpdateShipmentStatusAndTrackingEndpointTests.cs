@@ -17,22 +17,24 @@ public class UpdateShipmentStatusAndTrackingEndpointTests : IClassFixture<Integr
         _client = factory.CreateClient();
     }
 
-    private async Task<string> CreateShipmentAsync()
+    private async Task<string> CreateShipmentAssignedToNewCourierAsync()
     {
         await _client.AuthenticateAsAsync(UserRole.Customer);
         var request = new CreateOrderEndpoint.CreateOrderRequest("Istanbul", "Konya", 3.0m);
         var response = await _client.PostAsJsonAsync("/api/orders", request);
         var created = await response.Content.ReadFromJsonAsync<CreateOrderEndpoint.CreateOrderResponse>();
-        return created!.TrackingNumber;
+
+        var courier = await _client.CreateCourierAsync();
+        await _client.AssignShipmentAsAdminAsync(created!.TrackingNumber, courier.CourierId);
+        await _client.LoginAsync(courier.Email, courier.Password);
+
+        return created.TrackingNumber;
     }
 
     [Fact]
     public async Task UpdateStatus_FollowingHappyPath_SucceedsAndBuildsFullTrackingTimeline()
     {
-        var trackingNumber = await CreateShipmentAsync();
-
-        // Statü güncellemesi Courier (ya da Admin) rolü gerektiriyor.
-        await _client.AuthenticateAsAsync(UserRole.Courier);
+        var trackingNumber = await CreateShipmentAssignedToNewCourierAsync();
 
         string[] pipeline =
         [
@@ -59,7 +61,7 @@ public class UpdateShipmentStatusAndTrackingEndpointTests : IClassFixture<Integr
 
         var tracking = await trackingResponse.Content.ReadFromJsonAsync<GetShipmentTrackingEndpoint.GetShipmentTrackingResponse>();
         tracking.Should().NotBeNull();
-        tracking!.Events.Should().HaveCount(8); // Created (ilk kayıt) + 7 statü geçişi
+        tracking!.Events.Should().HaveCount(8);
         tracking.Events.Select(e => e.Status).Should().ContainInOrder(
             "Created", "PickedUp", "ArrivedAtSortingCenter", "Sorted",
             "InTransit", "ArrivedAtDistributionCenter", "OutForDelivery", "Delivered");
@@ -68,8 +70,7 @@ public class UpdateShipmentStatusAndTrackingEndpointTests : IClassFixture<Integr
     [Fact]
     public async Task UpdateStatus_SkippingAheadInPipeline_ReturnsValidationProblem()
     {
-        var trackingNumber = await CreateShipmentAsync();
-        await _client.AuthenticateAsAsync(UserRole.Courier);
+        var trackingNumber = await CreateShipmentAssignedToNewCourierAsync();
 
         var response = await _client.PatchAsJsonAsync(
             $"/api/shipments/{trackingNumber}/status",
@@ -81,8 +82,7 @@ public class UpdateShipmentStatusAndTrackingEndpointTests : IClassFixture<Integr
     [Fact]
     public async Task UpdateStatus_AfterTerminalStatusReached_IsRejected()
     {
-        var trackingNumber = await CreateShipmentAsync();
-        await _client.AuthenticateAsAsync(UserRole.Courier);
+        var trackingNumber = await CreateShipmentAssignedToNewCourierAsync();
 
         var failResponse = await _client.PatchAsJsonAsync(
             $"/api/shipments/{trackingNumber}/status",

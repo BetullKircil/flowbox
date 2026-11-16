@@ -1,9 +1,12 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using FlowBox.Api.Endpoints.Auth;
+using FlowBox.Api.Endpoints.Shipment;
 using FlowBox.Api.Enums;
 
 namespace FlowBox.IntegrationTests;
+
+public record TestCourier(Guid CourierId, string Email, string Password);
 
 public static class TestAuthHelper
 {
@@ -14,6 +17,13 @@ public static class TestAuthHelper
 
     public static async Task AuthenticateAsAsync(this HttpClient client, UserRole role)
     {
+        if (role == UserRole.Courier)
+        {
+            var courier = await client.CreateCourierAsync();
+            await client.LoginAsync(courier.Email, courier.Password);
+            return;
+        }
+
         var email = $"{Guid.NewGuid():N}@flowbox.test";
 
         if (role == UserRole.Customer)
@@ -31,6 +41,30 @@ public static class TestAuthHelper
         }
 
         await client.LoginAsync(email, TestPassword);
+    }
+
+    public static async Task<TestCourier> CreateCourierAsync(this HttpClient client, string name = "Test Kurye")
+    {
+        await client.LoginAsync(SeedAdminEmail, SeedAdminPassword);
+
+        var email = $"{Guid.NewGuid():N}@flowbox.test";
+        var response = await client.PostAsJsonAsync(
+            "/api/admin/users",
+            new CreateUserEndpoint.CreateUserRequest(email, TestPassword, "Courier", name, "+905551234567"));
+        response.EnsureSuccessStatusCode();
+
+        var body = await response.Content.ReadFromJsonAsync<CreateUserEndpoint.CreateUserResponse>();
+        return new TestCourier(body!.CourierId!.Value, email, TestPassword);
+    }
+
+    public static async Task AssignShipmentAsAdminAsync(this HttpClient client, string trackingNumber, Guid courierId)
+    {
+        await client.LoginAsync(SeedAdminEmail, SeedAdminPassword);
+
+        var response = await client.PatchAsJsonAsync(
+            $"/api/shipments/{trackingNumber}/assign",
+            new AssignShipmentEndpoint.AssignShipmentRequest(courierId));
+        response.EnsureSuccessStatusCode();
     }
 
     public static async Task<string> LoginAsync(this HttpClient client, string email, string password)

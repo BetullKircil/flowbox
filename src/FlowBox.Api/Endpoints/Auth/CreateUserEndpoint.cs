@@ -8,9 +8,9 @@ namespace FlowBox.Api.Endpoints.Auth;
 
 public class CreateUserEndpoint : IEndpoint
 {
-    public record CreateUserRequest(string Email, string Password, string Role);
+    public record CreateUserRequest(string Email, string Password, string Role, string? Name = null, string? Phone = null);
 
-    public record CreateUserResponse(Guid Id, string Email, string Role);
+    public record CreateUserResponse(Guid Id, string Email, string Role, Guid? CourierId);
 
     private static async Task<Results<Created<CreateUserResponse>, ValidationProblem>> Handle(
         [FromBody] CreateUserRequest request,
@@ -25,16 +25,23 @@ public class CreateUserEndpoint : IEndpoint
         }
 
         var role = Enum.Parse<UserRole>(request.Role);
-        var result = await authService.RegisterAsync(request.Email, request.Password, role, ct);
+        var courierProfile = role == UserRole.Courier
+            ? new CourierProfile(request.Name!, request.Phone!)
+            : null;
+
+        var result = await authService.RegisterAsync(request.Email, request.Password, role, courierProfile, ct);
 
         return result switch
         {
             RegisterResult.Success success => TypedResults.Created(
                 $"/api/auth/users/{success.UserId}",
-                new CreateUserResponse(success.UserId, success.Email, success.Role)),
+                new CreateUserResponse(success.UserId, success.Email, success.Role, success.CourierId)),
 
             RegisterResult.EmailAlreadyRegistered => TypedResults.ValidationProblem(
                 new Dictionary<string, string[]> { { "Email", new[] { "Bu e-posta adresi zaten kayıtlı." } } }),
+
+            RegisterResult.CourierProfileRequired => TypedResults.ValidationProblem(
+                new Dictionary<string, string[]> { { "Name", new[] { "Kurye hesabı için ad ve telefon gerekli." } } }),
 
             _ => throw new InvalidOperationException("Beklenmeyen sonuç türü.")
         };
@@ -45,7 +52,7 @@ public class CreateUserEndpoint : IEndpoint
         builder.MapPost("/api/admin/users", Handle)
             .WithOpenApi()
             .WithTags("Auth")
-            .WithSummary("Creates a user with a chosen role (Customer, Courier or Admin). Admin only.")
+            .WithSummary("Creates a user with a chosen role (Customer, Courier or Admin); a Courier also gets its courier profile. Admin only.")
             .RequireAuthorization(policy => policy.RequireRole("Admin"));
     }
 }

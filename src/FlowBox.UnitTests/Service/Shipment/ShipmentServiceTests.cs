@@ -16,6 +16,8 @@ namespace FlowBox.UnitTests.Service.Shipment;
 /// </summary>
 public class ShipmentServiceTests
 {
+    private static readonly Caller AdminCaller = new(Guid.NewGuid(), UserRole.Admin);
+
     private static ShipmentService CreateService(
         out FakeShipmentRepository shipmentRepository,
         out FakeCourierRepository courierRepository)
@@ -59,7 +61,7 @@ public class ShipmentServiceTests
     {
         var service = CreateService(out _, out _);
 
-        var result = await service.UpdateStatusAsync("TR000000", ShipmentStatus.PickedUp, CancellationToken.None);
+        var result = await service.UpdateStatusAsync("TR000000", ShipmentStatus.PickedUp, AdminCaller, CancellationToken.None);
 
         result.Should().BeOfType<UpdateShipmentStatusResult.ShipmentNotFound>();
     }
@@ -70,7 +72,7 @@ public class ShipmentServiceTests
         var service = CreateService(out var shipmentRepository, out _);
         var shipment = SeedShipment(shipmentRepository);
 
-        var result = await service.UpdateStatusAsync(shipment.TrackingNumber, ShipmentStatus.Delivered, CancellationToken.None);
+        var result = await service.UpdateStatusAsync(shipment.TrackingNumber, ShipmentStatus.Delivered, AdminCaller, CancellationToken.None);
 
         result.Should().BeOfType<UpdateShipmentStatusResult.InvalidTransition>();
         shipment.Status.Should().Be(ShipmentStatus.Created, "geçersiz geçişte statü değişmemeli");
@@ -82,7 +84,7 @@ public class ShipmentServiceTests
         var service = CreateService(out var shipmentRepository, out _);
         var shipment = SeedShipment(shipmentRepository);
 
-        var result = await service.UpdateStatusAsync(shipment.TrackingNumber, ShipmentStatus.PickedUp, CancellationToken.None);
+        var result = await service.UpdateStatusAsync(shipment.TrackingNumber, ShipmentStatus.PickedUp, AdminCaller, CancellationToken.None);
 
         result.Should().BeOfType<UpdateShipmentStatusResult.Success>();
         shipment.Status.Should().Be(ShipmentStatus.PickedUp);
@@ -202,6 +204,140 @@ public class ShipmentServiceTests
 
         var result = await service.GetAssignmentHistoryAsync(
             shipment.TrackingNumber, new Caller(Guid.NewGuid(), UserRole.Customer), CancellationToken.None);
+
+        result.Should().BeOfType<ShipmentHistoryResult.NotFound>();
+    }
+
+    private static FlowBox.Api.Data.Ef.Models.Courier SeedCourier(FakeCourierRepository repository, Guid userId)
+    {
+        var courier = new FlowBox.Api.Data.Ef.Models.Courier
+        {
+            UserId = userId,
+            Name = "Ahmet Kurye",
+            Phone = "+905551112233"
+        };
+        repository.Couriers.Add(courier);
+        return courier;
+    }
+
+    [Fact]
+    public async Task GetByTrackingNumberAsync_AsAssignedCourier_ReturnsShipment()
+    {
+        var service = CreateService(out var shipmentRepository, out var courierRepository);
+        var shipment = SeedShipment(shipmentRepository);
+        var courierUserId = Guid.NewGuid();
+        var courier = SeedCourier(courierRepository, courierUserId);
+        await service.AssignToCourierAsync(shipment.TrackingNumber, courier.Id, CancellationToken.None);
+
+        var result = await service.GetByTrackingNumberAsync(
+            shipment.TrackingNumber, new Caller(courierUserId, UserRole.Courier), CancellationToken.None);
+
+        result.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task GetByTrackingNumberAsync_AsUnassignedCourier_ReturnsNull()
+    {
+        var service = CreateService(out var shipmentRepository, out var courierRepository);
+        var shipment = SeedShipment(shipmentRepository);
+        var courierUserId = Guid.NewGuid();
+        SeedCourier(courierRepository, courierUserId);
+
+        var result = await service.GetByTrackingNumberAsync(
+            shipment.TrackingNumber, new Caller(courierUserId, UserRole.Courier), CancellationToken.None);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetByTrackingNumberAsync_AsCourierWithoutCourierProfile_ReturnsNull()
+    {
+        var service = CreateService(out var shipmentRepository, out _);
+        var shipment = SeedShipment(shipmentRepository);
+
+        var result = await service.GetByTrackingNumberAsync(
+            shipment.TrackingNumber, new Caller(Guid.NewGuid(), UserRole.Courier), CancellationToken.None);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetByTrackingNumberAsync_AfterReassignment_PreviousCourierLosesAccess()
+    {
+        var service = CreateService(out var shipmentRepository, out var courierRepository);
+        var shipment = SeedShipment(shipmentRepository);
+        var firstUserId = Guid.NewGuid();
+        var secondUserId = Guid.NewGuid();
+        var first = SeedCourier(courierRepository, firstUserId);
+        var second = SeedCourier(courierRepository, secondUserId);
+        await service.AssignToCourierAsync(shipment.TrackingNumber, first.Id, CancellationToken.None);
+        await service.AssignToCourierAsync(shipment.TrackingNumber, second.Id, CancellationToken.None);
+
+        var previous = await service.GetByTrackingNumberAsync(
+            shipment.TrackingNumber, new Caller(firstUserId, UserRole.Courier), CancellationToken.None);
+        var current = await service.GetByTrackingNumberAsync(
+            shipment.TrackingNumber, new Caller(secondUserId, UserRole.Courier), CancellationToken.None);
+
+        previous.Should().BeNull();
+        current.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_AsAssignedCourier_Succeeds()
+    {
+        var service = CreateService(out var shipmentRepository, out var courierRepository);
+        var shipment = SeedShipment(shipmentRepository);
+        var courierUserId = Guid.NewGuid();
+        var courier = SeedCourier(courierRepository, courierUserId);
+        await service.AssignToCourierAsync(shipment.TrackingNumber, courier.Id, CancellationToken.None);
+
+        var result = await service.UpdateStatusAsync(
+            shipment.TrackingNumber, ShipmentStatus.PickedUp, new Caller(courierUserId, UserRole.Courier), CancellationToken.None);
+
+        result.Should().BeOfType<UpdateShipmentStatusResult.Success>();
+        shipment.Status.Should().Be(ShipmentStatus.PickedUp);
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_AsUnassignedCourier_ReturnsShipmentNotFoundAndKeepsStatus()
+    {
+        var service = CreateService(out var shipmentRepository, out var courierRepository);
+        var shipment = SeedShipment(shipmentRepository);
+        var courierUserId = Guid.NewGuid();
+        SeedCourier(courierRepository, courierUserId);
+
+        var result = await service.UpdateStatusAsync(
+            shipment.TrackingNumber, ShipmentStatus.PickedUp, new Caller(courierUserId, UserRole.Courier), CancellationToken.None);
+
+        result.Should().BeOfType<UpdateShipmentStatusResult.ShipmentNotFound>();
+        shipment.Status.Should().Be(ShipmentStatus.Created);
+        shipment.TrackingEvents.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task GetTrackingAsync_AsUnassignedCourier_ReturnsNotFound()
+    {
+        var service = CreateService(out var shipmentRepository, out var courierRepository);
+        var shipment = SeedShipment(shipmentRepository);
+        var courierUserId = Guid.NewGuid();
+        SeedCourier(courierRepository, courierUserId);
+
+        var result = await service.GetTrackingAsync(
+            shipment.TrackingNumber, new Caller(courierUserId, UserRole.Courier), CancellationToken.None);
+
+        result.Should().BeOfType<ShipmentTrackingResult.NotFound>();
+    }
+
+    [Fact]
+    public async Task GetAssignmentHistoryAsync_AsUnassignedCourier_ReturnsNotFound()
+    {
+        var service = CreateService(out var shipmentRepository, out var courierRepository);
+        var shipment = SeedShipment(shipmentRepository);
+        var courierUserId = Guid.NewGuid();
+        SeedCourier(courierRepository, courierUserId);
+
+        var result = await service.GetAssignmentHistoryAsync(
+            shipment.TrackingNumber, new Caller(courierUserId, UserRole.Courier), CancellationToken.None);
 
         result.Should().BeOfType<ShipmentHistoryResult.NotFound>();
     }

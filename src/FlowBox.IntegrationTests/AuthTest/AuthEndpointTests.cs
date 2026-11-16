@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using FlowBox.Api.Endpoints.Auth;
-using FlowBox.Api.Endpoints.Courier;
 using FlowBox.Api.Enums;
 using FluentAssertions;
 using Xunit;
@@ -59,9 +58,9 @@ public class AuthEndpointTests : IClassFixture<IntegrationTestWebAppFactory>
 
         _client.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", loginBody.Token);
-        var courierRes = await _client.PostAsJsonAsync(
-            "/api/couriers", new CreateCourierEndpoint.CreateCourierRequest("Test Kurye", "+905551234567"));
-        courierRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var adminOnlyRes = await _client.PostAsJsonAsync(
+            "/api/admin/users", new CreateUserEndpoint.CreateUserRequest(NewEmail(), "SecurePass123!", "Admin"));
+        adminOnlyRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Fact]
@@ -128,7 +127,8 @@ public class AuthEndpointTests : IClassFixture<IntegrationTestWebAppFactory>
         await _client.LoginAsync(TestAuthHelper.SeedAdminEmail, TestAuthHelper.SeedAdminPassword);
 
         var createRes = await _client.PostAsJsonAsync(
-            "/api/admin/users", new CreateUserEndpoint.CreateUserRequest(courierEmail, "SecurePass123!", "Courier"));
+            "/api/admin/users",
+            new CreateUserEndpoint.CreateUserRequest(courierEmail, "SecurePass123!", "Courier", "Ahmet Kurye", "+905559876543"));
         createRes.StatusCode.Should().Be(HttpStatusCode.Created);
 
         _client.DefaultRequestHeaders.Authorization = null;
@@ -150,23 +150,4 @@ public class AuthEndpointTests : IClassFixture<IntegrationTestWebAppFactory>
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
-    [Fact]
-    public async Task CreateCourier_WithoutToken_ReturnsUnauthorized()
-    {
-        var response = await _client.PostAsJsonAsync(
-            "/api/couriers", new CreateCourierEndpoint.CreateCourierRequest("Test Kurye", "+905551234567"));
-
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
-    public async Task CreateCourier_AsCustomer_ReturnsForbidden()
-    {
-        await _client.AuthenticateAsAsync(UserRole.Customer);
-
-        var response = await _client.PostAsJsonAsync(
-            "/api/couriers", new CreateCourierEndpoint.CreateCourierRequest("Test Kurye", "+905551234567"));
-
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-    }
 }

@@ -20,5 +20,16 @@ public class CreateUserValidator : AbstractValidator<CreateUserEndpoint.CreateUs
             .NotEmpty().WithMessage("Rol boş olamaz.")
             .IsEnumName(typeof(UserRole), caseSensitive: true)
             .WithMessage($"Geçersiz rol. Geçerli değerler: {string.Join(", ", Enum.GetNames<UserRole>())}");
+
+        When(x => x.Role == nameof(UserRole.Courier), () =>
+        {
+            RuleFor(x => x.Name)
+                .NotEmpty().WithMessage("Kurye adı boş olamaz.")
+                .MinimumLength(3).WithMessage("Kurye adı en az 3 karakter olmalıdır.");
+
+            RuleFor(x => x.Phone)
+                .NotEmpty().WithMessage("Telefon numarası boş olamaz.")
+                .Matches(@"^\+?[1-9]\d{1,14}$").WithMessage("Geçerli bir telefon numarası girin.");
+        });
     }
 }

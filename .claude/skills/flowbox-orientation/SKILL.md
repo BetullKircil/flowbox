@@ -55,7 +55,9 @@ ShipmentNotFound / InvalidTransition` gibi), endpoint bunu `switch` ile HTTP sta
   Shipment'e dönüşür (1:1). İleride ödeme onayı gibi adımlar araya girince bu ayrım işe yarayacak.
 - **Shipment**: asıl takip birimi (`TrackingNumber`, `OrderId`). **ShipmentTrackingEvent**: her statü
   değişikliğinde bir kayıt (silinmez/güncellenmez). **ShipmentAssignment**: kurye atama geçmişi.
-- **Courier** (Name, Phone) ve **User** (Email unique, PasswordHash, Role) birbirine **bağlı değil** (bkz. eksikler).
+- **User** (Email unique, PasswordHash, Role) ve **Courier** (Name, Phone) birbirine bağlıdır: `Courier.UserId`
+  zorunlu ve benzersiz. Courier rolünde hesap açarken profil (ad, telefon) de verilir; `AuthService.RegisterAsync`
+  ikisini tek işlemde oluşturur. Profilsiz Courier hesabı oluşamaz (`RegisterResult.CourierProfileRequired`).
 - **Statü akışı**: `Created → PickedUp → ArrivedAtSortingCenter → Sorted → InTransit →
   ArrivedAtDistributionCenter → OutForDelivery → Delivered`. `Failed`, terminal olmayan her durumdan
   erişilebilir. Adım atlanamaz; `Delivered`/`Failed` sonrası değişiklik yapılamaz.
@@ -66,15 +68,16 @@ ShipmentNotFound / InvalidTransition` gibi), endpoint bunu `switch` ile HTTP sta
 |---|---|
 | `POST /api/auth/register` | Herkes (her zaman **Customer** oluşturur; gövdedeki `role` yok sayılır) |
 | `POST /api/auth/login` | Herkes |
-| `POST /api/admin/users` | Admin (Courier/Admin/Customer hesabı oluşturur) |
+| `POST /api/admin/users` | Admin (Customer/Courier/Admin hesabı oluşturur; Courier için `name` ve `phone` zorunlu, yanıtta `courierId` döner) |
 | `POST /api/orders`, `GET /api/orders/mine` | Customer, Admin |
-| `GET /api/shipments/{tn}`, `/tracking`, `/history` | Giriş yapmış herkes + **sahiplik**: Admin hepsini, Customer sadece kendi siparişinin kargosunu görür; başkasınınki **404** (403 değil, varlığı sızdırmamak için) |
-| `PATCH /api/shipments/{tn}/status` | Courier, Admin |
-| `PATCH /api/shipments/{tn}/assign`, `POST /api/couriers`, `GET /api/shipments` | Admin |
+| `GET /api/shipments/{tn}`, `/tracking`, `/history` | Giriş yapmış herkes + **sahiplik**: Admin hepsini görür; Customer sadece kendi siparişinin kargosunu; Courier sadece kendisine **aktif atanmış** kargoyu. Diğerleri **404** (403 değil, varlığı sızdırmamak için) |
+| `PATCH /api/shipments/{tn}/status` | Courier (aynı sahiplik kuralı), Admin |
+| `GET /api/couriers/me/shipments` | Courier (kendisine aktif atanmış kargolar, sayfalı) |
+| `PATCH /api/shipments/{tn}/assign`, `GET /api/shipments` | Admin |
 
 Yetki kuralı endpoint'te `.RequireAuthorization(policy => policy.RequireRole(...))` ile verilir; sahiplik
-kuralı Service'te (`ShipmentService.CanAccess`). Auth **opt-in**: yeni endpoint'e `RequireAuthorization`
-eklemeyi unutursan anonim olur.
+kuralı Service'te (`ShipmentService.CanAccessAsync`). Kargo başka kuryeye atanınca önceki kurye erişimini kaybeder.
+Auth **opt-in**: yeni endpoint'e `RequireAuthorization` eklemeyi unutursan anonim olur.
 
 ## Auth
 
@@ -110,8 +113,9 @@ eklemeyi unutursan anonim olur.
 - `FlowBox.IntegrationTests` (**Docker gerekir**): `WebApplicationFactory` + Testcontainers ile gerçek Postgres,
   her sınıf kendi container'ında, migration'lar sıfırdan uygulanır. `TestAuthHelper.AuthenticateAsAsync(rol)` rol
   için gerçek akışla token alır (Customer: register; Courier/Admin: seed Admin'in `/api/admin/users`'ı).
-  Factory `AdminSeed`'i test değerleriyle ezer.
-- Son durum: **60 unit + 24 integration**, hepsi yeşil. Yeni özellik = hem unit hem integration test.
+  `CreateCourierAsync` kurye hesabı açıp `courierId` döner, `AssignShipmentAsAdminAsync` kargoyu atar; kuryenin
+  statü güncelleyebilmesi için önce kargonun ona atanması gerekir. Factory `AdminSeed`'i test değerleriyle ezer.
+- Son durum: **79 unit + 33 integration**, hepsi yeşil. Yeni özellik = hem unit hem integration test.
 
 ```bash
 dotnet test src/FlowBox.UnitTests/FlowBox.UnitTests.csproj
@@ -140,11 +144,11 @@ docker compose down -v                      # DB'yi sıfırlar (yerel veri silin
 
 ## Bilinen eksikler / sıradaki işler
 
-1. **Courier sahipliği yok**: Courier şu an tüm kargoları görebiliyor ve güncelleyebiliyor. Önce `User` ↔ `Courier`
-   bağlanmalı, sonra "kurye sadece kendisine atanmış kargoları görür".
-2. **`TrackingNumber` rastgele 6 haneli, unique kısıt ve index yok**: çakışma mümkün, tablo büyüyünce sorgu yavaşlar.
-3. Admin'in oluşturduğu sipariş Admin hesabına yazılır.
-4. Refresh token, rate limiting, hesap kilitleme yok. JWT 60 dk.
+1. **`TrackingNumber` rastgele 6 haneli, unique kısıt ve index yok**: çakışma mümkün (yanlış kargo dönebilir), tablo
+   büyüyünce sorgu yavaşlar.
+2. Admin'in oluşturduğu sipariş Admin hesabına yazılır.
+3. Refresh token, rate limiting, hesap kilitleme yok. JWT 60 dk.
+4. Deploy yok (CI sadece doğrular).
 5. Container'da DataProtection anahtarları kalıcı değil (uyarı verir; şu an kullanılan bir özellik yok).
 6. Vizyondan yapılmayanlar: Kafka/event-driven, Redis, Elasticsearch, observability, mikroservislere bölme,
    mobil uygulamalar, rota optimizasyonu, AI tahminleme, harici servisler (SMS, harita, ödeme).
