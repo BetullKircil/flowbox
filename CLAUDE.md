@@ -50,7 +50,8 @@ dotnet test src/FlowBox.IntegrationTests/FlowBox.IntegrationTests.csproj
 2. Read the skill and the relevant existing files, then write in the same pattern.
 3. Order: entity/enum → repository (+ DI registration) → service → endpoint + validator → migration → tests.
 4. Run `dotnet build` and both test suites; do not say "done" until everything is green.
-5. Give a summary: what changed, what you deliberately left open, the steps the user must take (including a DB reset if
+5. Run the `code-reviewer` subagent on the diff and report its findings (fix real ones, say which you skipped and why).
+6. Give a summary: what changed, what you deliberately left open, the steps the user must take (including a DB reset if
    needed) and the commit commands.
 
 **Debugging**

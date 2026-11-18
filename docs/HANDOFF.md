@@ -12,15 +12,18 @@ Last updated: 2026-11-16, on branch `docs/split-skills`.
   test, #3 JWT auth (+ Postgres healthcheck), #4 restricted registration + Admin-only user creation, #5 customer
   ownership, #6 courier ownership.
 - Tests: **79 unit + 33 integration**, all passing (verified 2026-11-16).
-- In progress: `docs/split-skills` (this change) splits the single skill into topic skills. A separate branch,
-  `feature/tracking-number-unique`, is open but has no changes yet.
+- In progress: `docs/code-reviewer-agent` adds the `code-reviewer` subagent. `feature/tracking-number-unique` is open
+  but has no changes yet; merge `main` into it before starting.
 
 ## Last done
 
-- Split `flowbox-orientation` into a router plus `flowbox-architecture`, `flowbox-domain`, `flowbox-auth`,
-  `flowbox-testing`, `flowbox-operations`. Size before: one skill of 161 lines / 11,117 characters loaded in full for
-  every task. Known gaps moved from the skill to this file.
-- Added a skills rule to `CLAUDE.md` (one topic per skill, volatile info goes here).
+- PR #8: split `flowbox-orientation` into a router plus `flowbox-architecture`, `flowbox-domain`, `flowbox-auth`,
+  `flowbox-testing`, `flowbox-operations`. Before: one skill of 161 lines / 11,117 characters loaded in full for every
+  task; now about 3,800–5,500 characters per task (about 7,900 when two topics are needed). The skill listing grew by
+  about 350 tokens (6 descriptions instead of 1).
+- Added `.claude/agents/code-reviewer.md`: read-only (no Edit/Write), runs on `sonnet`, reviews `git diff main...HEAD`
+  against `CLAUDE.md` and the topic skills. Bash is allowed for `git diff`/`log`/`status` only by instruction, not by
+  enforcement. `CLAUDE.md` workflow now includes a review step before the summary.
 
 ## Next
 
@@ -29,8 +32,8 @@ Last updated: 2026-11-16, on branch `docs/split-skills`.
    collision-resistant generation (retry or a longer value) + unit and integration tests. The migration fails if the dev
    DB already holds duplicates, so expect `docker compose down -v`. Re-run the k6 test afterwards and compare with the
    baseline in `flowbox-testing`.
-2. Learning track for repo tooling: a read-only `code-reviewer` subagent (`.claude/agents/code-reviewer.md`) and
-   `docs/decisions/` ADRs (404 vs 403, why repository interfaces are kept).
+2. Try the `code-reviewer` subagent on the TrackingNumber diff and compare findings and token use with `/code-review`
+   in the main session. Later: `docs/decisions/` ADRs (404 vs 403, why repository interfaces are kept).
 3. Token experiments, one tool at a time so effects stay attributable: baseline (no plugins) -> Superpowers -> Ponytail
    or Caveman. Measure each with `/context` or the usage tool.
 
